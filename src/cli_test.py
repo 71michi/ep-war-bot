@@ -3,7 +3,7 @@ from pathlib import Path
 
 from .openai_parser import parse_war_from_images
 from .config import env_str
-from .bot import format_message
+from .bot import build_post, render_post
 
 def main():
     if len(sys.argv) < 3:
@@ -14,14 +14,15 @@ def main():
     images = [p.read_bytes() for p in paths]
 
     model = env_str("OPENAI_MODEL", "gpt-4o-mini")
-    summary, players, debug, meta = parse_war_from_images(images, model=model)
+    summary, players, expected_max_rank, debug = parse_war_from_images(images, model=model)
 
     if not summary or not players:
         print("Nie udało się wyciągnąć danych.")
         print(debug)
         return
 
-    print(format_message(summary, players, meta=meta))
+    post = build_post(summary, players, expected_max_rank)
+    print(render_post(post))
 
 if __name__ == "__main__":
     main()

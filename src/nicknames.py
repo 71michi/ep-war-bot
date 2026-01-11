@@ -187,3 +187,26 @@ def roster_autocorrect(name: str, roster: list[str], min_score: int = 88) -> str
     if score >= min_score:
         return roster[idx]
     return name
+
+
+def roster_match(name: str, roster: list[str], min_score: int = 88) -> Optional[str]:
+    """Return the best roster entry for *name* if similarity is high enough, else None.
+
+    This is a stricter variant used when we want roster-only output.
+    """
+    if not roster:
+        return None
+
+    target_key = canonical_key(name)
+    if not target_key:
+        return None
+
+    roster_keys = [canonical_key(r) for r in roster]
+    match = process.extractOne(target_key, roster_keys, scorer=fuzz.ratio)
+    if not match:
+        return None
+
+    _best_key, score, idx = match
+    if score >= min_score:
+        return roster[idx]
+    return None

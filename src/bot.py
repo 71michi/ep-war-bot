@@ -1,16 +1,15 @@
 import os
-import re
 import asyncio
 import logging
-from typing import List, Optional, Tuple, Dict, Any
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional, Tuple
 
 from aiohttp import web
 import discord
 
 from .config import env_str, env_int
 from .openai_parser import parse_war_from_images, WarSummary, PlayerScore
-from .nicknames import normalize_with_aliases, normalize_display, roster_autocorrect
-
+from .nicknames import normalize_with_aliases, normalize_display, roster_match
 
 LOG_LEVEL = env_str("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(
@@ -47,7 +46,7 @@ async def start_keepalive_server():
     runner = web.AppRunner(app)
     await runner.setup()
 
-    port = int(os.getenv("PORT", "8080"))  # Render ustawia PORT
+    port = int(os.getenv("PORT", "8080"))
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
 
@@ -55,225 +54,171 @@ async def start_keepalive_server():
 
 
 # ----------------------------
-# Bot logic
+# Roster helpers
 # ----------------------------
 
+_roster_cache: Tuple[float, List[str]] = (0.0, [])
 
-def load_roster() -> list[str]:
+
+def load_roster() -> List[str]:
+    """Load roster.json with a tiny mtime cache."""
     import json
+    global _roster_cache
+
     try:
+        st = os.stat(ROSTER_PATH)
+        if _roster_cache[0] == st.st_mtime and _roster_cache[1]:
+            return _roster_cache[1]
         with open(ROSTER_PATH, "r", encoding="utf-8") as f:
-            return json.load(f).get("roster", [])
+            roster = json.load(f).get("roster", [])
+        roster = [str(x) for x in roster if str(x).strip()]
+        _roster_cache = (st.st_mtime, roster)
+        return roster
     except FileNotFoundError:
         return []
     except Exception:
         return []
 
 
-def _normalize_output_nick(name_raw: str, roster: list[str]) -> str:
-    """Normalizacja nicku (aliasy -> cleanup -> fuzzy do roster)."""
-    nick = (name_raw or "").strip()
-    if not nick:
-        return "UNKNOWN"
+def resolve_to_roster(name_raw: str, name_norm_from_model: Optional[str], roster: List[str]) -> Optional[str]:
+    """Return a roster name or None (strict roster-only)."""
+    if not roster:
+        return None
 
-    mapped = normalize_with_aliases(nick, ALIASES_PATH)
-    if mapped:
-        nick = mapped
+    roster_lower = {r.lower(): r for r in roster}
 
-    cleaned = normalize_display(nick)
-    fixed = roster_autocorrect(cleaned, roster, min_score=88)
-    return fixed or "UNKNOWN"
+    # 1) If model provided name_norm, trust it only if it's in roster.
+    if name_norm_from_model:
+        nn = name_norm_from_model.strip()
+        if nn and nn.lower() in roster_lower:
+            return roster_lower[nn.lower()]
+
+    # 2) Aliases
+    mapped = normalize_with_aliases(name_raw, ALIASES_PATH)
+    if mapped and mapped.lower() in roster_lower:
+        return roster_lower[mapped.lower()]
+
+    # 3) Exact match after minimal cleanup
+    cleaned = normalize_display(name_raw)
+    if cleaned.lower() in roster_lower:
+        return roster_lower[cleaned.lower()]
+
+    # 4) Fuzzy
+    hit = roster_match(cleaned, roster, min_score=88)
+    return hit
 
 
 # ----------------------------
-# Warnings + manual corrections
+# War post model + rendering
 # ----------------------------
 
-_PLAYER_LINE_RE = re.compile(r"^\[(\d{1,3})\]\s+(.+?)\s+(?:—|-)\s+(\d+)\s*$")
-_MANUAL_CORR_RE = re.compile(r"^\s*\[?\s*(\d{1,3})\s*\]?\s+(.+?)\s+(?:—|-|:)?\s*(\d{1,4})\s*$")
-_EXPECTED_MAX_RANK_RE = re.compile(r"Brak odczytu pozycji\s*\(\s*1\s*[–-]\s*(\d{1,3})\s*\)", re.IGNORECASE)
+
+@dataclass
+class WarLine:
+    rank: int
+    points: int
+    name_raw: str
+    name_display: str
+    unknown_raw: Optional[str] = None
 
 
-def _analyze_ranks(players: List[PlayerScore], expected_max_rank: Optional[int]) -> Tuple[List[int], List[int], int]:
-    """Return (missing_ranks, duplicate_ranks, max_rank_used_for_check)."""
-    ranks = [p.rank for p in players if isinstance(p.rank, int) and p.rank > 0]
-    if not ranks:
-        return ([], [], int(expected_max_rank or 0))
+@dataclass
+class WarPost:
+    summary: WarSummary
+    expected_max_rank: int
+    lines_by_rank: Dict[int, WarLine] = field(default_factory=dict)
 
-    seen = set()
-    dups: List[int] = []
-    for r in ranks:
-        if r in seen:
-            dups.append(r)
-        seen.add(r)
+    def missing_ranks(self) -> List[int]:
+        return [r for r in range(1, self.expected_max_rank + 1) if r not in self.lines_by_rank]
 
-    max_rank = int(expected_max_rank or max(ranks))
-    missing = [r for r in range(1, max_rank + 1) if r not in seen]
-    return (missing, sorted(set(dups)), max_rank)
+    def unknown_ranks(self) -> List[int]:
+        return [r for r, ln in self.lines_by_rank.items() if ln.name_display == "UNKNOWN"]
 
 
-def _format_warning(players: List[PlayerScore], expected_max_rank: Optional[int], validation_errors: Optional[List[str]]) -> Optional[str]:
-    missing, dups, max_rank = _analyze_ranks(players, expected_max_rank)
-    parts: List[str] = []
-
-    if missing:
-        miss_txt = ", ".join(f"{m:02d}" for m in missing[:15])
-        if len(missing) > 15:
-            miss_txt += f" …(+{len(missing)-15})"
-        parts.append(f"⚠️ Brak odczytu pozycji (1–{max_rank}): **{miss_txt}**.")
-    if dups:
-        dup_txt = ", ".join(f"{d:02d}" for d in dups[:15])
-        if len(dups) > 15:
-            dup_txt += f" …(+{len(dups)-15})"
-        parts.append(f"⚠️ Duplikaty pozycji: **{dup_txt}**.")
-
-    # Jeśli walidacja parsera zgłasza problem, a nie ma oczywistego missing/dup, pokaż krótki hint.
-    if validation_errors and not (missing or dups):
-        parts.append("⚠️ Wynik wygląda podejrzanie (walidacja parsera nie przeszła).")
-
-    if not parts:
-        return None
-
-    parts.append(
-        "Aby uzupełnić / poprawić, odpowiedz (reply) na tę wiadomość np.: `23 ropuch13 250` (możesz podać kilka linii)."
-    )
-    return "\n".join(parts)
+# message_id -> WarPost
+WAR_POSTS: Dict[int, WarPost] = {}
 
 
-def _parse_manual_corrections(text: str) -> List[Tuple[int, str, int]]:
-    """Parse user reply lines like: '23 ropuch13 250' into (rank, nick, points)."""
-    out: List[Tuple[int, str, int]] = []
-    for raw_line in (text or "").splitlines():
-        line = raw_line.strip()
-        if not line:
-            continue
-        m = _MANUAL_CORR_RE.match(line)
-        if not m:
-            continue
-        rank = int(m.group(1))
-        nick = m.group(2).strip()
-        points = int(m.group(3))
-        if not nick or rank <= 0:
-            continue
-        out.append((rank, nick, points))
-    return out
-
-
-def _parse_players_from_bot_message(content: str) -> Tuple[Optional[str], Dict[int, Tuple[str, int]]]:
-    """Return (header, players_by_rank). Header includes everything before the first player line."""
-    if not content:
-        return (None, {})
-
-    lines = content.splitlines()
-    first_player_idx = None
-    for i, l in enumerate(lines):
-        if _PLAYER_LINE_RE.match(l.strip()):
-            first_player_idx = i
-            break
-    if first_player_idx is None:
-        return (None, {})
-
-    header = "\n".join(lines[:first_player_idx]).rstrip()
-    players: Dict[int, Tuple[str, int]] = {}
-
-    for l in lines[first_player_idx:]:
-        mm = _PLAYER_LINE_RE.match(l.strip())
-        if not mm:
-            continue
-        r = int(mm.group(1))
-        name = mm.group(2).strip()
-        pts = int(mm.group(3))
-        players[r] = (name, pts)
-
-    return (header, players)
-
-
-def _extract_expected_max_rank_from_message(content: str) -> Optional[int]:
-    """Spróbuj wyciągnąć expected max rank z warningu w wiadomości bota.
-
-    Przykład warningu:
-      ⚠️ Brak odczytu pozycji (1–30): ...
-    """
-    if not content:
-        return None
-    m = _EXPECTED_MAX_RANK_RE.search(content)
-    if not m:
-        return None
-    try:
-        v = int(m.group(1))
-        return v if v > 0 else None
-    except Exception:
-        return None
-
-
-def _apply_corrections_to_bot_message(content: str, corrections: List[Tuple[int, str, int]]) -> Optional[str]:
-    header, players_by_rank = _parse_players_from_bot_message(content)
-    if header is None or not corrections:
-        return None
-
-    expected_max_rank = _extract_expected_max_rank_from_message(content)
-
+def build_post(summary: WarSummary, players: List[PlayerScore], expected_max_rank: Optional[int]) -> WarPost:
     roster = load_roster()
 
-    # Apply updates
-    for r, nick, pts in corrections:
-        players_by_rank[int(r)] = (_normalize_output_nick(nick, roster), int(pts))
+    by_rank: Dict[int, WarLine] = {}
 
-    # Rebuild players list
-    player_lines = []
-    for r in sorted(players_by_rank.keys()):
-        name, pts = players_by_rank[r]
-        player_lines.append(f"[{r:02d}] {name} — {pts}")
+    def better(a: WarLine, b: WarLine) -> WarLine:
+        # prefer non-UNKNOWN, then longer raw, then higher points
+        a_score = (0 if a.name_display == "UNKNOWN" else 100) + min(len(a.name_raw or ""), 40) + int(a.points)
+        b_score = (0 if b.name_display == "UNKNOWN" else 100) + min(len(b.name_raw or ""), 40) + int(b.points)
+        return a if a_score >= b_score else b
 
-    # Warning based on rebuilt list (jeśli znaliśmy expected_max_rank, użyj go z poprzedniej wiadomości)
-    rebuilt_players = [
-        PlayerScore(rank=r, name_raw=name, points=pts, name_norm=None)
-        for r, (name, pts) in players_by_rank.items()
-    ]
-    warning = _format_warning(rebuilt_players, expected_max_rank=expected_max_rank, validation_errors=None)
+    for p in players:
+        if not isinstance(p.rank, int) or p.rank <= 0 or p.rank > 200:
+            continue
+        if not isinstance(p.points, int) or p.points < 0 or p.points > 9999:
+            continue
 
-    new_content = header + "\n\n" + "\n".join(player_lines)
-    if warning:
-        new_content += "\n\n" + warning
-    return new_content
+        roster_name = resolve_to_roster(p.name_raw, p.name_norm, roster)
+        if roster_name:
+            ln = WarLine(rank=p.rank, points=p.points, name_raw=p.name_raw, name_display=roster_name, unknown_raw=None)
+        else:
+            ln = WarLine(rank=p.rank, points=p.points, name_raw=p.name_raw, name_display="UNKNOWN", unknown_raw=p.name_raw)
+
+        if p.rank in by_rank:
+            by_rank[p.rank] = better(by_rank[p.rank], ln)
+        else:
+            by_rank[p.rank] = ln
+
+    mx = expected_max_rank if expected_max_rank and expected_max_rank > 0 else None
+    if not mx:
+        mx = max(by_rank.keys()) if by_rank else 0
+    mx = int(mx) if mx else 0
+
+    return WarPost(summary=summary, expected_max_rank=mx, lines_by_rank=by_rank)
 
 
-# ----------------------------
-# Formatting
-# ----------------------------
+def render_post(post: WarPost) -> str:
+    s = post.summary
 
-
-def format_message(summary: WarSummary, players: List[PlayerScore], meta: Optional[Dict[str, Any]] = None) -> str:
     header = (
-        f"**Wojna zakończona: {summary.result}**\n"
-        f"**{summary.our_alliance}** {summary.our_score} — {summary.opponent_score} **{summary.opponent_alliance}**\n"
+        f"**Wojna zakończona: {s.result}**\n"
+        f"**{s.our_alliance}** {s.our_score} — {s.opponent_score} **{s.opponent_alliance}**\n"
     )
-    if summary.war_mode:
-        header += f"Tryb: **{summary.war_mode}**" + (" (BETA)\n" if summary.beta_badge else "\n")
+    if s.war_mode:
+        header += f"Tryb: **{s.war_mode}**" + (" (BETA)\n" if s.beta_badge else "\n")
     header += "\n"
 
-    roster = load_roster()
-    lines = []
-    for p in sorted(players, key=lambda x: x.rank):
-        nick = _normalize_output_nick(p.name_raw, roster)
-        lines.append(f"[{p.rank:02d}] {nick} — {p.points}")
+    lines_out: List[str] = []
+    for r in sorted(post.lines_by_rank.keys()):
+        ln = post.lines_by_rank[r]
+        lines_out.append(f"[{ln.rank:02d}] {ln.name_display} — {ln.points}")
 
-    body = "\n".join(lines)
+    msg = header + "\n".join(lines_out)
 
-    expected_max_rank = None
-    validation_errors: Optional[List[str]] = None
-    if meta:
-        expected_max_rank = meta.get("chat_expected_max_rank")
-        validation_errors = meta.get("chat_validation_errors")
+    missing = post.missing_ranks()
+    unknown = post.unknown_ranks()
 
-    warning = _format_warning(players, expected_max_rank, validation_errors)
-    if warning:
-        return header + body + "\n\n" + warning
-    return header + body
+    if missing or unknown:
+        warn_lines: List[str] = ["", "⚠️ **Wymagane poprawki**"]
+        if missing:
+            warn_lines.append("• Brakujące pozycje: " + ", ".join(str(x) for x in missing))
+        if unknown:
+            # include raw to make manual correction easier
+            parts = []
+            for r in sorted(unknown):
+                raw = post.lines_by_rank[r].unknown_raw or ""
+                raw = raw.replace("`", "'")
+                parts.append(f"{r}(\"{raw}\")")
+            warn_lines.append("• Nieznane nicki: " + ", ".join(parts))
+
+        warn_lines.append("")
+        warn_lines.append("Reply na tę wiadomość w formacie: `23 ropuch13 250` (może być wiele linii).")
+        warn_lines.append("Po przetworzeniu poprawki bot usunie Twoją wiadomość.")
+        msg += "\n" + "\n".join(warn_lines)
+
+    return msg
 
 
-def chunk_message(msg: str, limit: int = 1900) -> list[str]:
-    chunks = []
+def chunk_message(msg: str, limit: int = 1900) -> List[str]:
+    chunks: List[str] = []
     while len(msg) > limit:
         cut = msg.rfind("\n", 0, limit)
         if cut == -1:
@@ -291,8 +236,135 @@ def is_image(att: discord.Attachment) -> bool:
 
 
 async def parse_images_in_thread(images: List[bytes]):
-    # uruchamiamy parser (sync) w wątku, żeby nie blokować event loop discord.py
     return await asyncio.to_thread(parse_war_from_images, images, OPENAI_MODEL)
+
+
+def _parse_manual_corrections(text: str) -> List[Tuple[int, str, int]]:
+    """Parse lines like: 23 ropuch13 250 (rank, nick, points)."""
+    out: List[Tuple[int, str, int]] = []
+    for raw_line in (text or "").splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+
+        # Normalize separators
+        line = line.replace("—", " ").replace("-", " ").replace(":", " ")
+        toks = [t for t in line.split() if t]
+        if len(toks) < 3:
+            continue
+
+        # Rank
+        t0 = toks[0].strip("[](){}")
+        try:
+            rank = int(t0)
+        except ValueError:
+            continue
+
+        # Points
+        t_last = toks[-1].strip("[](){}")
+        try:
+            points = int(t_last)
+        except ValueError:
+            continue
+
+        nick = " ".join(toks[1:-1]).strip()
+        if not nick:
+            continue
+
+        if rank <= 0 or rank > 200:
+            continue
+        if points < 0 or points > 9999:
+            continue
+
+        out.append((rank, nick, points))
+    return out
+
+
+async def try_apply_manual_corrections(
+    discord_client: discord.Client,
+    message: discord.Message,
+) -> bool:
+    """If message is a reply to a bot war-post, apply corrections and delete the user's message."""
+    if not message.reference or not message.reference.message_id:
+        return False
+
+    # Fetch referenced message
+    ref_msg: Optional[discord.Message] = None
+    if isinstance(message.reference.resolved, discord.Message):
+        ref_msg = message.reference.resolved
+    else:
+        try:
+            ref_msg = await message.channel.fetch_message(message.reference.message_id)
+        except Exception:
+            return False
+
+    if not ref_msg:
+        return False
+    if not discord_client.user:
+        return False
+    if ref_msg.author.id != discord_client.user.id:
+        return False
+
+    post = WAR_POSTS.get(ref_msg.id)
+    if not post:
+        # we only support edits for messages we created in this runtime
+        return False
+
+    corrections = _parse_manual_corrections(message.content)
+    if not corrections:
+        return False
+
+    roster = load_roster()
+
+    for rank, nick, points in corrections:
+        roster_name = resolve_to_roster(nick, None, roster)
+        if roster_name:
+            post.lines_by_rank[rank] = WarLine(
+                rank=rank,
+                points=points,
+                name_raw=nick,
+                name_display=roster_name,
+                unknown_raw=None,
+            )
+        else:
+            post.lines_by_rank[rank] = WarLine(
+                rank=rank,
+                points=points,
+                name_raw=nick,
+                name_display="UNKNOWN",
+                unknown_raw=nick,
+            )
+
+        if rank > post.expected_max_rank:
+            post.expected_max_rank = rank
+
+    # Re-render and edit
+    new_content = render_post(post)
+    # If it's too long (unlikely), truncate warnings last.
+    parts = chunk_message(new_content)
+    if len(parts) != 1:
+        # Keep only the first chunk to avoid multi-message edit complexity.
+        new_content = parts[0]
+
+    try:
+        await ref_msg.edit(content=new_content)
+    except Exception:
+        return False
+
+    # Signal success
+    try:
+        await ref_msg.add_reaction("✅")
+    except Exception:
+        pass
+
+    # Delete user's correction message
+    try:
+        await message.delete()
+    except Exception:
+        # requires Manage Messages; ignore if not available
+        pass
+
+    return True
 
 
 def main():
@@ -318,31 +390,15 @@ def main():
         if message.channel.id != WATCH_CHANNEL_ID:
             return
 
-        # --- Manual correction mode ---
-        if message.reference and (message.content or "").strip():
-            corrections = _parse_manual_corrections(message.content)
-            if corrections:
-                ref_msg = message.reference.resolved
-                if ref_msg is None and message.reference.message_id:
-                    try:
-                        ref_msg = await message.channel.fetch_message(message.reference.message_id)
-                    except Exception:
-                        ref_msg = None
+        # 1) Manual corrections via reply
+        try:
+            handled = await try_apply_manual_corrections(client, message)
+            if handled:
+                return
+        except Exception:
+            logging.exception("Błąd podczas manual correction")
 
-                if ref_msg and ref_msg.author and client.user and ref_msg.author.id == client.user.id:
-                    new_content = _apply_corrections_to_bot_message(ref_msg.content, corrections)
-                    if new_content and new_content != ref_msg.content:
-                        try:
-                            await ref_msg.edit(content=new_content)
-                            try:
-                                await message.add_reaction("✅")
-                            except Exception:
-                                pass
-                        except Exception as e:
-                            logging.exception("Nie udało się zaktualizować wiadomości bota: %s", e)
-                            await message.channel.send("Nie udało się zaktualizować wiadomości (błąd edycji).")
-                    return
-
+        # 2) Regular flow: 2 images -> parse -> post
         atts = [a for a in message.attachments if is_image(a)]
         if len(atts) < 2:
             return
@@ -350,7 +406,7 @@ def main():
         images = [await atts[0].read(), await atts[1].read()]
 
         try:
-            summary, players, _debug, meta = await parse_images_in_thread(images)
+            summary, players, expected_max_rank, _debug = await parse_images_in_thread(images)
         except Exception as e:
             logging.exception("Błąd parsowania OpenAI: %s", e)
             await message.channel.send("Nie udało się odczytać screenów (błąd po stronie parsera).")
@@ -363,9 +419,16 @@ def main():
             )
             return
 
-        out = format_message(summary, players, meta=meta)
-        for part in chunk_message(out):
-            await message.channel.send(part)
+        post = build_post(summary, players, expected_max_rank)
+        out = render_post(post)
+
+        parts = chunk_message(out)
+        if len(parts) != 1:
+            # Send only first chunk; if this happens, we still want consistent reply behavior.
+            out = parts[0]
+
+        sent = await message.channel.send(out)
+        WAR_POSTS[sent.id] = post
 
     client.run(DISCORD_TOKEN)
 
