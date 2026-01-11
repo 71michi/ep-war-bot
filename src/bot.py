@@ -4,6 +4,7 @@ import asyncio
 import logging
 import time
 import uuid
+import io
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
@@ -11,7 +12,7 @@ from aiohttp import web
 import discord
 
 from .config import env_str, env_int
-from .logging_setup import setup_logging, set_trace_id, reset_trace_id
+from .logging_setup import setup_logging, set_trace_id, reset_trace_id, get_trace_id
 from .openai_parser import parse_war_from_images, WarSummary, PlayerScore
 from .nicknames import normalize_with_aliases, normalize_display, roster_match, canonical_key
 from rapidfuzz import fuzz, process
@@ -38,6 +39,53 @@ WATCH_CHANNEL_ID = env_int("WATCH_CHANNEL_ID", 0)
 OPENAI_MODEL = env_str("OPENAI_MODEL", "gpt-4o-mini")
 ALIASES_PATH = env_str("ALIASES_PATH", "aliases.json")
 ROSTER_PATH = env_str("ROSTER_PATH", "roster.json")
+
+# When running on Render Free (no shell / no FS access), you can still get the full debug trace.
+# By default we attach per-run debug logs as a text file on Discord.
+SEND_LOG_TO_DISCORD = env_int("SEND_LOG_TO_DISCORD", 1) == 1
+# If enabled, we only send logs when warnings were emitted (missing/unknown/etc.) or on exceptions.
+SEND_LOG_ONLY_ON_WARN = env_int("SEND_LOG_ONLY_ON_WARN", 0) == 1
+# Safety cap so we don't exceed Discord upload limits.
+DISCORD_LOG_MAX_BYTES = env_int("DISCORD_LOG_MAX_BYTES", 1_500_000)
+
+
+def _redact_secrets(text: str) -> str:
+    """Best-effort redaction (avoid leaking tokens in case a library logs them)."""
+    if not text:
+        return ""
+    # OpenAI keys often look like: sk-...
+    text = re.sub(r"\bsk-[A-Za-z0-9]{10,}\b", "sk-***REDACTED***", text)
+    # Discord bot tokens are base64-ish and dot-separated.
+    text = re.sub(r"\b([MN][A-Za-z\d_-]{20,}\.[A-Za-z\d_-]{6,}\.[A-Za-z\d_-]{20,})\b", "***REDACTED_DISCORD_TOKEN***", text)
+    # Generic Bearer tokens
+    text = re.sub(r"(?i)Bearer\s+[A-Za-z0-9\-\._~\+\/]+=*", "Bearer ***REDACTED***", text)
+    return text
+
+
+class _PerTraceCaptureFilter(logging.Filter):
+    def __init__(self, trace_id: str):
+        super().__init__()
+        self._trace_id = trace_id
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        # Ensure trace_id exists even if other handlers didn't inject it.
+        if not hasattr(record, "trace_id"):
+            try:
+                record.trace_id = get_trace_id()  # type: ignore[attr-defined]
+            except Exception:
+                record.trace_id = "-"  # type: ignore[attr-defined]
+        return getattr(record, "trace_id", "-") == self._trace_id
+
+
+def _attach_per_trace_logger(trace_id: str) -> Tuple[logging.Handler, io.StringIO]:
+    """Attach a temporary DEBUG handler capturing only this trace_id."""
+    stream = io.StringIO()
+    h = logging.StreamHandler(stream)
+    h.setLevel(logging.DEBUG)
+    h.setFormatter(logging.Formatter("%(asctime)s %(levelname)s [%(trace_id)s] %(name)s: %(message)s"))
+    h.addFilter(_PerTraceCaptureFilter(trace_id))
+    logging.getLogger().addHandler(h)
+    return h, stream
 
 
 # ----------------------------
@@ -630,6 +678,19 @@ def main():
 
         trace_id = _new_trace_id("discord")
         token = set_trace_id(trace_id)
+        capture_handler: Optional[logging.Handler] = None
+        capture_stream: Optional[io.StringIO] = None
+        processed_images = False
+        had_warning = False
+        had_exception = False
+        bot_post_msg: Optional[discord.Message] = None
+
+        # Capture a per-run DEBUG trace so it can be uploaded to Discord (useful on Render Free).
+        try:
+            capture_handler, capture_stream = _attach_per_trace_logger(trace_id)
+        except Exception:
+            capture_handler = None
+            capture_stream = None
         logger.info(
             "===== START on_message id=%s author=%s attachments=%d content_len=%d =====",
             message.id,
@@ -647,6 +708,7 @@ def main():
                     return
             except Exception:
                 logger.exception("Błąd podczas manual correction")
+                had_exception = True
 
             # 2) Regular flow: 2 images -> parse -> post
             atts = [a for a in message.attachments if is_image(a)]
@@ -666,11 +728,13 @@ def main():
 
             images = [await atts[0].read(), await atts[1].read()]
             logger.debug("Downloaded attachments: sizes=%s", [len(b) for b in images])
+            processed_images = True
 
             try:
                 summary, players, expected_max_rank, _debug = await parse_images_in_thread(images, trace_id=trace_id)
             except Exception as e:
                 logger.exception("Błąd parsowania OpenAI: %s", e)
+                had_exception = True
                 await message.channel.send("Nie udało się odczytać screenów (błąd po stronie parsera).")
                 return
 
@@ -683,6 +747,7 @@ def main():
                 return
 
             post = build_post(summary, players, expected_max_rank)
+            had_warning = bool(post.missing_ranks() or post.unknown_ranks())
             out = render_post(post)
 
             parts = chunk_message(out)
@@ -692,11 +757,52 @@ def main():
                 logger.warning("Output message exceeded Discord limit; truncated to 1 chunk")
 
             sent = await message.channel.send(out)
+            bot_post_msg = sent
             WAR_POSTS[sent.id] = post
             logger.info("Sent war post msg_id=%s stored in WAR_POSTS", sent.id)
         finally:
             logger.info("===== END on_message id=%s =====", message.id)
             _flush_logs()
+
+            # Detach capture handler before we send anything else (avoid capturing its own upload logs).
+            if capture_handler is not None:
+                try:
+                    logging.getLogger().removeHandler(capture_handler)
+                    capture_handler.flush()
+                    capture_handler.close()
+                except Exception:
+                    pass
+
+            # Optionally upload the per-run debug log to Discord.
+            try:
+                if SEND_LOG_TO_DISCORD and processed_images and capture_stream is not None:
+                    if (not SEND_LOG_ONLY_ON_WARN) or had_warning or had_exception:
+                        raw_text = capture_stream.getvalue()
+                        raw_text = _redact_secrets(raw_text)
+                        data = raw_text.encode("utf-8", errors="replace")
+
+                        truncated = False
+                        if DISCORD_LOG_MAX_BYTES and len(data) > int(DISCORD_LOG_MAX_BYTES):
+                            truncated = True
+                            tail = data[-int(DISCORD_LOG_MAX_BYTES):]
+                            prefix = (
+                                f"[TRUNCATED] Log exceeded {DISCORD_LOG_MAX_BYTES} bytes; showing last chunk only.\n"
+                            ).encode("utf-8")
+                            data = prefix + tail
+
+                        bio = io.BytesIO(data)
+                        filename = f"log-{trace_id}.txt"
+                        file = discord.File(fp=bio, filename=filename)
+
+                        note = f"📝 Debug log: `{trace_id}`" + (" (truncated)" if truncated else "")
+                        if bot_post_msg is not None:
+                            await bot_post_msg.reply(note, file=file, mention_author=False)
+                        else:
+                            await message.channel.send(note, file=file)
+            except Exception:
+                # Never fail the whole handler due to log upload problems.
+                logger.exception("Failed to upload debug log to Discord")
+
             reset_trace_id(token)
 
     client.run(DISCORD_TOKEN)
