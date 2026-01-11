@@ -1,5 +1,4 @@
 import logging
-import os
 import contextvars
 from logging.handlers import RotatingFileHandler
 
@@ -32,11 +31,15 @@ def get_trace_id() -> str:
 
 
 def setup_logging() -> None:
-    """Configure console + log.txt with a trace id.
+    """Configure console + (optional) log.txt with a trace id.
 
+    IMPORTANT: We keep third-party debug logs OFF by default.
     - Console level controlled by LOG_LEVEL (default INFO)
     - File level controlled by LOG_FILE_LEVEL (default DEBUG)
     - File path controlled by LOG_FILE (default log.txt)
+
+    The file handler is attached ONLY to the 'warbot' logger hierarchy, so the
+    log stays readable (no base64 image payload dumps from HTTP/OpenAI libs).
     """
     root = logging.getLogger()
     if getattr(root, "_warbot_logging_configured", False):
@@ -49,21 +52,23 @@ def setup_logging() -> None:
     max_bytes = env_int("LOG_MAX_BYTES", 5_000_000)
     backups = env_int("LOG_BACKUPS", 2)
 
-    root.setLevel(logging.DEBUG)
-
-    fmt = logging.Formatter(
-        "%(asctime)s %(levelname)s [%(trace_id)s] %(name)s: %(message)s"
-    )
+    fmt = logging.Formatter("%(asctime)s %(levelname)s [%(trace_id)s] %(name)s: %(message)s")
     flt = TraceIdFilter()
 
-    # Console
+    # Root: console only (avoid flooding with third-party DEBUG logs)
+    root.setLevel(getattr(logging, console_level, logging.INFO))
+
     sh = logging.StreamHandler()
     sh.setLevel(getattr(logging, console_level, logging.INFO))
     sh.setFormatter(fmt)
     sh.addFilter(flt)
     root.addHandler(sh)
 
-    # File (rotating to avoid unbounded growth)
+    # warbot: detailed file logs
+    wb = logging.getLogger("warbot")
+    wb.setLevel(logging.DEBUG)
+    wb.propagate = True  # INFO/WARN/ERROR still go to console via root
+
     try:
         fh = RotatingFileHandler(
             log_file,
@@ -74,9 +79,19 @@ def setup_logging() -> None:
         fh.setLevel(getattr(logging, file_level, logging.DEBUG))
         fh.setFormatter(fmt)
         fh.addFilter(flt)
-        root.addHandler(fh)
+        wb.addHandler(fh)
     except Exception:
         # If file logging fails (read-only FS etc.), keep console logging.
         pass
+
+    # Silence noisy libraries (we log OpenAI calls ourselves at the warbot level).
+    for noisy in (
+        "openai",
+        "openai._base_client",
+        "httpx",
+        "httpcore",
+        "PIL",
+    ):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
 
     root._warbot_logging_configured = True  # type: ignore[attr-defined]

@@ -198,7 +198,8 @@ def _detect_expected_max_rank(image_bytes: bytes, model: str) -> Optional[int]:
         crop = pre.crop((0, y1, x2, h))
         buf = io.BytesIO()
         crop.save(buf, format="PNG")
-        data_url = _to_data_url(buf.getvalue())
+        crop_bytes = buf.getvalue()
+        data_url = _to_data_url(crop_bytes)
     except Exception:
         return None
 
@@ -210,7 +211,8 @@ def _detect_expected_max_rank(image_bytes: bytes, model: str) -> Optional[int]:
 
     timeout_s = env_int("OPENAI_TIMEOUT_SECONDS", 90)
     logger.debug("Detecting expected_max_rank via bottom-crop OCR")
-    logger.debug("Chat slice OCR request: bytes=%d model=%s roster=%d", len(slice_bytes), model, len(roster))
+    logger.debug("expected_max_rank OCR request: bytes=%d model=%s", len(crop_bytes), model)
+
     resp = client.responses.parse(
         model=model,
         input=[
@@ -235,6 +237,7 @@ def _detect_expected_max_rank(image_bytes: bytes, model: str) -> Optional[int]:
         return emr
     logger.debug("Failed to detect expected_max_rank")
     return None
+
 
 
 def _parse_chat_slice(slice_bytes: bytes, model: str, roster: list[str]) -> List[PlayerScore]:

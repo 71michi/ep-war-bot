@@ -22,13 +22,22 @@ logger = logging.getLogger("warbot")
 
 
 def _flush_logs() -> None:
-    """Best-effort flush of all handlers (so log.txt contains the full trace)."""
-    root = logging.getLogger()
-    for h in list(root.handlers):
-        try:
-            h.flush()
-        except Exception:
-            pass
+    """Best-effort flush of all handlers.
+
+    We flush both root handlers (console + per-trace capture) and the 'warbot'
+    handlers (file handler).
+    """
+    seen: set[int] = set()
+    for lg in (logging.getLogger(), logging.getLogger("warbot")):
+        for h in list(lg.handlers):
+            hid = id(h)
+            if hid in seen:
+                continue
+            seen.add(hid)
+            try:
+                h.flush()
+            except Exception:
+                pass
 
 
 def _new_trace_id(prefix: str = "msg") -> str:
@@ -74,7 +83,16 @@ class _PerTraceCaptureFilter(logging.Filter):
                 record.trace_id = get_trace_id()  # type: ignore[attr-defined]
             except Exception:
                 record.trace_id = "-"  # type: ignore[attr-defined]
-        return getattr(record, "trace_id", "-") == self._trace_id
+
+        if getattr(record, "trace_id", "-") != self._trace_id:
+            return False
+
+        # Keep the debug trace readable:
+        # - Always include our own logs (warbot.*)
+        # - Include WARNING/ERROR from any other library (useful for diagnosing crashes)
+        if record.name.startswith("warbot"):
+            return True
+        return record.levelno >= logging.WARNING
 
 
 def _attach_per_trace_logger(trace_id: str) -> Tuple[logging.Handler, io.StringIO]:
