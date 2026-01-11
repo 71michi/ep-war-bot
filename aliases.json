@@ -1,0 +1,21 @@
+{
+  "exact": {
+    "яга": "Jaro",
+    "яαgα": "Jaro",
+    "◊ Z@vi$z@ ◊": "Zawisza",
+    "јаго": "Jaro",
+    "⟪》Z@ѵi§Z@《⟫": "Zawisza",
+    "ßù§h22": "Bush22",
+    "яαяø": "Jaro",
+    "цαяσ": "Jaro"
+  },
+  "canonical": {
+    "zavisza": "Zawisza",
+    "szyro": "czyro",
+    "bush22": "Bush22",
+    "rush22": "Bush22",
+    "raga": "Jaro",
+    "rago": "Jaro",
+    "cars": "Jaro"
+  }
+}
