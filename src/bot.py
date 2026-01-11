@@ -1,6 +1,9 @@
 import os
+import re
 import asyncio
 import logging
+import time
+import uuid
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
@@ -8,14 +11,27 @@ from aiohttp import web
 import discord
 
 from .config import env_str, env_int
+from .logging_setup import setup_logging, set_trace_id, reset_trace_id
 from .openai_parser import parse_war_from_images, WarSummary, PlayerScore
-from .nicknames import normalize_with_aliases, normalize_display, roster_match
+from .nicknames import normalize_with_aliases, normalize_display, roster_match, canonical_key
+from rapidfuzz import fuzz, process
 
-LOG_LEVEL = env_str("LOG_LEVEL", "INFO").upper()
-logging.basicConfig(
-    level=getattr(logging, LOG_LEVEL, logging.INFO),
-    format="%(asctime)s %(levelname)s %(message)s",
-)
+setup_logging()
+logger = logging.getLogger("warbot")
+
+
+def _flush_logs() -> None:
+    """Best-effort flush of all handlers (so log.txt contains the full trace)."""
+    root = logging.getLogger()
+    for h in list(root.handlers):
+        try:
+            h.flush()
+        except Exception:
+            pass
+
+
+def _new_trace_id(prefix: str = "msg") -> str:
+    return f"{prefix}-{uuid.uuid4().hex[:8]}-{int(time.time())}"
 
 DISCORD_TOKEN = env_str("DISCORD_TOKEN", "")
 WATCH_CHANNEL_ID = env_int("WATCH_CHANNEL_ID", 0)
@@ -50,7 +66,7 @@ async def start_keepalive_server():
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
 
-    logging.info("Keepalive HTTP listening on :%s/health", port)
+    logger.info("Keepalive HTTP listening on :%s/health", port)
 
 
 # ----------------------------
@@ -81,31 +97,23 @@ def load_roster() -> List[str]:
 
 
 def resolve_to_roster(name_raw: str, name_norm_from_model: Optional[str], roster: List[str]) -> Optional[str]:
-    """Return a roster name or None (strict roster-only)."""
+    """Return a roster name or None (strict roster-only).
+
+    Uses the same candidate logic as the batch resolver (aliases/exact/fuzzy+variants).
+    """
     if not roster:
         return None
 
     roster_lower = {r.lower(): r for r in roster}
+    roster_keys = [canonical_key(r) for r in roster]
 
-    # 1) If model provided name_norm, trust it only if it's in roster.
-    if name_norm_from_model:
-        nn = name_norm_from_model.strip()
-        if nn and nn.lower() in roster_lower:
-            return roster_lower[nn.lower()]
+    tmp = WarLine(rank=0, points=0, name_raw=name_raw, name_norm_model=name_norm_from_model)
+    cands = _candidates_for_line(tmp, roster, roster_lower, roster_keys, min_fuzzy_score=88)
+    if not cands:
+        return None
+    # We only take the top candidate; ambiguity is handled better in batch mode.
+    return cands[0][1]
 
-    # 2) Aliases
-    mapped = normalize_with_aliases(name_raw, ALIASES_PATH)
-    if mapped and mapped.lower() in roster_lower:
-        return roster_lower[mapped.lower()]
-
-    # 3) Exact match after minimal cleanup
-    cleaned = normalize_display(name_raw)
-    if cleaned.lower() in roster_lower:
-        return roster_lower[cleaned.lower()]
-
-    # 4) Fuzzy
-    hit = roster_match(cleaned, roster, min_score=88)
-    return hit
 
 
 # ----------------------------
@@ -118,9 +126,14 @@ class WarLine:
     rank: int
     points: int
     name_raw: str
-    name_display: str
-    unknown_raw: Optional[str] = None
+    # Optional hint from the vision model; trusted only if it exists in roster.
+    name_norm_model: Optional[str] = None
 
+    # Final, roster-only display name; or "UNKNOWN" if we could not resolve.
+    name_display: str = ""
+
+    # When UNKNOWN, we keep the raw string for warnings/manual fixes.
+    unknown_raw: Optional[str] = None
 
 @dataclass
 class WarPost:
@@ -139,15 +152,203 @@ class WarPost:
 WAR_POSTS: Dict[int, WarPost] = {}
 
 
+def _generate_key_variants(key: str) -> List[str]:
+    """Generate a small set of OCR-robust variants for a canonical key."""
+    if not key:
+        return []
+    variants = {key}
+
+    # Collapse repeated letters: leggendarny -> legendarny
+    variants.add(re.sub(r"(.)\1+", r"\1", key))
+
+    # Common OCR confusions in these fonts
+    if "k" in key:
+        variants.add(key.replace("k", "h"))
+    if "h" in key:
+        variants.add(key.replace("h", "k"))
+
+    # First letter confusion seen with Cyrillic Я->r (Jaro case)
+    if key.startswith("r"):
+        variants.add("j" + key[1:])
+    if key.startswith("j"):
+        variants.add("r" + key[1:])
+
+    # Last letter confusion i<->a (Washi/Waśka case); used as a variant only
+    if key.endswith("i"):
+        variants.add(key[:-1] + "a")
+    if key.endswith("a"):
+        variants.add(key[:-1] + "i")
+
+    out = [v for v in variants if v]
+    out.sort()
+    return out
+
+
+def _candidates_for_line(
+    line: WarLine,
+    roster: List[str],
+    roster_lower: Dict[str, str],
+    roster_keys: List[str],
+    min_fuzzy_score: int = 88,
+) -> List[Tuple[float, str]]:
+    """Return sorted candidates (score, roster_name). Higher is better."""
+    candidates: Dict[str, float] = {}
+
+    cleaned = normalize_display(line.name_raw)
+    target_key = canonical_key(cleaned)
+    logger.debug(
+        "Roster resolver: rank=%s raw=%r cleaned=%r canonical=%r model_norm=%r",
+        getattr(line, "rank", "?"),
+        line.name_raw,
+        cleaned,
+        target_key,
+        line.name_norm_model,
+    )
+
+    # 1) Model-provided normalized name (only if it's a roster member)
+    if line.name_norm_model:
+        nn = line.name_norm_model.strip()
+        if nn and nn.lower() in roster_lower:
+            resolved = roster_lower[nn.lower()]
+            candidates[resolved] = 1000.0
+            logger.debug("  candidate via model_norm: %s score=1000", resolved)
+
+    # 2) Aliases
+    mapped = normalize_with_aliases(line.name_raw, ALIASES_PATH)
+    if mapped and mapped.lower() in roster_lower:
+        resolved = roster_lower[mapped.lower()]
+        candidates[resolved] = max(candidates.get(resolved, 0.0), 950.0)
+        logger.debug("  candidate via alias: raw=%r -> %r -> %s score=950", line.name_raw, mapped, resolved)
+
+    # 3) Exact match after cleanup
+    if cleaned.lower() in roster_lower:
+        resolved = roster_lower[cleaned.lower()]
+        candidates[resolved] = max(candidates.get(resolved, 0.0), 925.0)
+        logger.debug("  candidate via exact(cleaned): %s score=925", resolved)
+
+    # 4) Fuzzy on canonical keys (+ OCR variants)
+    if target_key:
+        base_last = target_key[-1]
+        best_by_idx: Dict[int, float] = {}
+
+        variants = _generate_key_variants(target_key)
+        logger.debug("  fuzzy canonical variants: %s", variants)
+
+        for k in variants:
+            for _rk, score, idx in process.extract(k, roster_keys, scorer=fuzz.ratio, limit=6):
+                if score is None:
+                    continue
+                s = float(score)
+
+                # Tie-break bonus: prefer candidates ending with the same last char as the *original* key.
+                try:
+                    if roster_keys[idx].endswith(base_last):
+                        s += 2.0
+                except Exception:
+                    pass
+
+                prev = best_by_idx.get(idx, 0.0)
+                if s > prev:
+                    best_by_idx[idx] = s
+
+        for idx, s in best_by_idx.items():
+            if s >= float(min_fuzzy_score):
+                candidates[roster[idx]] = max(candidates.get(roster[idx], 0.0), s)
+                logger.debug("  candidate via fuzzy: %s score=%.1f", roster[idx], s)
+
+    out = [(score, name) for name, score in candidates.items()]
+    out.sort(key=lambda x: (-x[0], x[1].lower()))
+    if out:
+        logger.debug("  candidates sorted: %s", out[:6])
+    else:
+        logger.debug("  no roster candidates")
+    return out
+
+
+def apply_roster_mapping(lines_by_rank: Dict[int, WarLine], roster: List[str]) -> None:
+    """Resolve all lines to roster names with global de-duplication."""
+    if not lines_by_rank:
+        return
+
+    if not roster:
+        for ln in lines_by_rank.values():
+            ln.name_display = "UNKNOWN"
+            ln.unknown_raw = ln.name_raw
+        return
+
+    roster_lower = {r.lower(): r for r in roster}
+    roster_keys = [canonical_key(r) for r in roster]
+
+    cand_by_rank: Dict[int, List[Tuple[float, str]]] = {}
+    for r, ln in lines_by_rank.items():
+        cand_by_rank[r] = _candidates_for_line(ln, roster, roster_lower, roster_keys, min_fuzzy_score=88)
+
+    assigned: Dict[int, str] = {}
+    used: set[str] = set()
+    remaining = set(cand_by_rank.keys())
+
+    # Greedy max-first assignment to avoid duplicates (Washi vs Waśka etc.)
+    while remaining:
+        best_rank: Optional[int] = None
+        best_score: float = -1.0
+
+        for r in remaining:
+            cands = cand_by_rank.get(r) or []
+            if not cands:
+                continue
+            score, _name = cands[0]
+            if score > best_score:
+                best_score = score
+                best_rank = r
+
+        if best_rank is None:
+            break
+
+        cands = cand_by_rank.get(best_rank) or []
+        if not cands:
+            remaining.remove(best_rank)
+            continue
+
+        score, name = cands[0]
+        logger.debug("Assign pass: best_rank=%s candidate=%s score=%.1f", best_rank, name, score)
+        if name not in used:
+            assigned[best_rank] = name
+            used.add(name)
+            remaining.remove(best_rank)
+            logger.debug("  assigned rank %s -> %s", best_rank, name)
+        else:
+            logger.debug("  candidate %s already used -> trying next candidate for rank %s", name, best_rank)
+            cand_by_rank[best_rank] = cands[1:]
+            if not cand_by_rank[best_rank]:
+                remaining.remove(best_rank)
+                logger.debug("  no more candidates for rank %s -> UNKNOWN", best_rank)
+
+    for r, ln in lines_by_rank.items():
+        if r in assigned:
+            ln.name_display = assigned[r]
+            ln.unknown_raw = None
+            logger.debug("Final roster mapping: rank %s raw=%r -> %s", r, ln.name_raw, ln.name_display)
+        else:
+            ln.name_display = "UNKNOWN"
+            ln.unknown_raw = ln.name_raw
+            logger.debug("Final roster mapping: rank %s raw=%r -> UNKNOWN", r, ln.name_raw)
+
+
 def build_post(summary: WarSummary, players: List[PlayerScore], expected_max_rank: Optional[int]) -> WarPost:
     roster = load_roster()
+
+    logger.info(
+        "Build post: players=%d expected_max_rank=%s roster=%d",
+        len(players or []),
+        expected_max_rank,
+        len(roster or []),
+    )
 
     by_rank: Dict[int, WarLine] = {}
 
     def better(a: WarLine, b: WarLine) -> WarLine:
-        # prefer non-UNKNOWN, then longer raw, then higher points
-        a_score = (0 if a.name_display == "UNKNOWN" else 100) + min(len(a.name_raw or ""), 40) + int(a.points)
-        b_score = (0 if b.name_display == "UNKNOWN" else 100) + min(len(b.name_raw or ""), 40) + int(b.points)
+        a_score = (100 if a.name_norm_model else 0) + min(len(a.name_raw or ""), 40) + int(a.points)
+        b_score = (100 if b.name_norm_model else 0) + min(len(b.name_raw or ""), 40) + int(b.points)
         return a if a_score >= b_score else b
 
     for p in players:
@@ -156,14 +357,29 @@ def build_post(summary: WarSummary, players: List[PlayerScore], expected_max_ran
         if not isinstance(p.points, int) or p.points < 0 or p.points > 9999:
             continue
 
-        roster_name = resolve_to_roster(p.name_raw, p.name_norm, roster)
-        if roster_name:
-            ln = WarLine(rank=p.rank, points=p.points, name_raw=p.name_raw, name_display=roster_name, unknown_raw=None)
-        else:
-            ln = WarLine(rank=p.rank, points=p.points, name_raw=p.name_raw, name_display="UNKNOWN", unknown_raw=p.name_raw)
+        ln = WarLine(
+            rank=p.rank,
+            points=p.points,
+            name_raw=p.name_raw,
+            name_norm_model=p.name_norm,
+        )
 
         if p.rank in by_rank:
-            by_rank[p.rank] = better(by_rank[p.rank], ln)
+            prev = by_rank[p.rank]
+            chosen = better(prev, ln)
+            by_rank[p.rank] = chosen
+            logger.debug(
+                "Duplicate rank=%d: prev(raw=%r pts=%d model_norm=%r) vs new(raw=%r pts=%d model_norm=%r) -> keep(raw=%r pts=%d)",
+                p.rank,
+                prev.name_raw,
+                prev.points,
+                prev.name_norm_model,
+                ln.name_raw,
+                ln.points,
+                ln.name_norm_model,
+                chosen.name_raw,
+                chosen.points,
+            )
         else:
             by_rank[p.rank] = ln
 
@@ -172,7 +388,20 @@ def build_post(summary: WarSummary, players: List[PlayerScore], expected_max_ran
         mx = max(by_rank.keys()) if by_rank else 0
     mx = int(mx) if mx else 0
 
-    return WarPost(summary=summary, expected_max_rank=mx, lines_by_rank=by_rank)
+    post = WarPost(summary=summary, expected_max_rank=mx, lines_by_rank=by_rank)
+
+    logger.info("Post ranks: unique=%d max=%d", len(post.lines_by_rank), post.expected_max_rank)
+
+    apply_roster_mapping(post.lines_by_rank, roster)
+
+    missing = post.missing_ranks()
+    unknown = post.unknown_ranks()
+    if missing or unknown:
+        logger.warning("Post validation: missing=%s unknown=%s", missing, unknown)
+    else:
+        logger.info("Post validation: OK")
+
+    return post
 
 
 def render_post(post: WarPost) -> str:
@@ -235,8 +464,9 @@ def is_image(att: discord.Attachment) -> bool:
     return att.filename.lower().endswith((".png", ".jpg", ".jpeg", ".webp"))
 
 
-async def parse_images_in_thread(images: List[bytes]):
-    return await asyncio.to_thread(parse_war_from_images, images, OPENAI_MODEL)
+async def parse_images_in_thread(images: List[bytes], trace_id: str):
+    # Pass trace_id explicitly so the OpenAI thread gets the same id.
+    return await asyncio.to_thread(parse_war_from_images, images, OPENAI_MODEL, trace_id=trace_id)
 
 
 def _parse_manual_corrections(text: str) -> List[Tuple[int, str, int]]:
@@ -285,6 +515,7 @@ async def try_apply_manual_corrections(
     message: discord.Message,
 ) -> bool:
     """If message is a reply to a bot war-post, apply corrections and delete the user's message."""
+    logger.info("Manual correction check: msg_id=%s author=%s", message.id, message.author.id)
     if not message.reference or not message.reference.message_id:
         return False
 
@@ -308,16 +539,20 @@ async def try_apply_manual_corrections(
     post = WAR_POSTS.get(ref_msg.id)
     if not post:
         # we only support edits for messages we created in this runtime
+        logger.warning("Manual correction: referenced msg %s not found in WAR_POSTS", ref_msg.id)
         return False
 
     corrections = _parse_manual_corrections(message.content)
     if not corrections:
         return False
 
+    logger.info("Manual correction parsed: %s", corrections)
+
     roster = load_roster()
 
     for rank, nick, points in corrections:
         roster_name = resolve_to_roster(nick, None, roster)
+        logger.debug("Manual correction line: rank=%d raw_nick=%r resolved=%r points=%d", rank, nick, roster_name, points)
         if roster_name:
             post.lines_by_rank[rank] = WarLine(
                 rank=rank,
@@ -349,6 +584,7 @@ async def try_apply_manual_corrections(
     try:
         await ref_msg.edit(content=new_content)
     except Exception:
+        logger.exception("Manual correction: failed to edit message %s", ref_msg.id)
         return False
 
     # Signal success
@@ -360,8 +596,10 @@ async def try_apply_manual_corrections(
     # Delete user's correction message
     try:
         await message.delete()
+        logger.info("Manual correction: deleted user msg %s", message.id)
     except Exception:
         # requires Manage Messages; ignore if not available
+        logger.warning("Manual correction: could not delete user msg %s (missing permissions?)", message.id)
         pass
 
     return True
@@ -381,7 +619,7 @@ def main():
     @client.event
     async def on_ready():
         asyncio.create_task(start_keepalive_server())
-        logging.info("Zalogowano jako: %s | obserwuję kanał: %s", client.user, WATCH_CHANNEL_ID)
+        logger.info("Zalogowano jako: %s | obserwuję kanał: %s", client.user, WATCH_CHANNEL_ID)
 
     @client.event
     async def on_message(message: discord.Message):
@@ -390,45 +628,76 @@ def main():
         if message.channel.id != WATCH_CHANNEL_ID:
             return
 
-        # 1) Manual corrections via reply
+        trace_id = _new_trace_id("discord")
+        token = set_trace_id(trace_id)
+        logger.info(
+            "===== START on_message id=%s author=%s attachments=%d content_len=%d =====",
+            message.id,
+            message.author.id,
+            len(message.attachments),
+            len(message.content or ""),
+        )
+
         try:
-            handled = await try_apply_manual_corrections(client, message)
-            if handled:
+            # 1) Manual corrections via reply
+            try:
+                handled = await try_apply_manual_corrections(client, message)
+                if handled:
+                    logger.info("Manual correction handled -> done")
+                    return
+            except Exception:
+                logger.exception("Błąd podczas manual correction")
+
+            # 2) Regular flow: 2 images -> parse -> post
+            atts = [a for a in message.attachments if is_image(a)]
+            if len(atts) < 2:
+                logger.info("Not enough image attachments (%d). Ignoring.", len(atts))
                 return
-        except Exception:
-            logging.exception("Błąd podczas manual correction")
 
-        # 2) Regular flow: 2 images -> parse -> post
-        atts = [a for a in message.attachments if is_image(a)]
-        if len(atts) < 2:
-            return
-
-        images = [await atts[0].read(), await atts[1].read()]
-
-        try:
-            summary, players, expected_max_rank, _debug = await parse_images_in_thread(images)
-        except Exception as e:
-            logging.exception("Błąd parsowania OpenAI: %s", e)
-            await message.channel.send("Nie udało się odczytać screenów (błąd po stronie parsera).")
-            return
-
-        if not summary or not players:
-            await message.channel.send(
-                "Nie udało się jednoznacznie odczytać obu screenów (brak summary albo listy). "
-                "Upewnij się, że widać cały panel z listą i paski wyniku."
+            logger.info(
+                "Using attachments: #1=%s (%d bytes, ct=%s), #2=%s (%d bytes, ct=%s)",
+                atts[0].filename,
+                int(getattr(atts[0], "size", 0) or 0),
+                atts[0].content_type,
+                atts[1].filename,
+                int(getattr(atts[1], "size", 0) or 0),
+                atts[1].content_type,
             )
-            return
 
-        post = build_post(summary, players, expected_max_rank)
-        out = render_post(post)
+            images = [await atts[0].read(), await atts[1].read()]
+            logger.debug("Downloaded attachments: sizes=%s", [len(b) for b in images])
 
-        parts = chunk_message(out)
-        if len(parts) != 1:
-            # Send only first chunk; if this happens, we still want consistent reply behavior.
-            out = parts[0]
+            try:
+                summary, players, expected_max_rank, _debug = await parse_images_in_thread(images, trace_id=trace_id)
+            except Exception as e:
+                logger.exception("Błąd parsowania OpenAI: %s", e)
+                await message.channel.send("Nie udało się odczytać screenów (błąd po stronie parsera).")
+                return
 
-        sent = await message.channel.send(out)
-        WAR_POSTS[sent.id] = post
+            if not summary or not players:
+                logger.warning("Parser returned incomplete data: summary=%s players=%s", bool(summary), bool(players))
+                await message.channel.send(
+                    "Nie udało się jednoznacznie odczytać obu screenów (brak summary albo listy). "
+                    "Upewnij się, że widać cały panel z listą i paski wyniku."
+                )
+                return
+
+            post = build_post(summary, players, expected_max_rank)
+            out = render_post(post)
+
+            parts = chunk_message(out)
+            if len(parts) != 1:
+                # Send only first chunk; if this happens, we still want consistent reply behavior.
+                out = parts[0]
+                logger.warning("Output message exceeded Discord limit; truncated to 1 chunk")
+
+            sent = await message.channel.send(out)
+            WAR_POSTS[sent.id] = post
+            logger.info("Sent war post msg_id=%s stored in WAR_POSTS", sent.id)
+        finally:
+            logger.info("===== END on_message id=%s =====", message.id)
+            _flush_logs()
+            reset_trace_id(token)
 
     client.run(DISCORD_TOKEN)
 

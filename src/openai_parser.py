@@ -2,6 +2,7 @@ import base64
 import io
 import json
 import re
+import logging
 from typing import List, Optional, Literal, Tuple, Dict
 
 from openai import OpenAI
@@ -11,6 +12,10 @@ from PIL import ImageEnhance, ImageFilter
 
 from .config import env_str, env_int
 from .nicknames import canonical_key
+from .logging_setup import setup_logging, set_trace_id, reset_trace_id
+
+setup_logging()
+logger = logging.getLogger("warbot.openai_parser")
 
 client = OpenAI()
 
@@ -81,12 +86,20 @@ def _ensure_png_bytes(image_bytes: bytes) -> bytes:
     mime=image/png but passed non-PNG bytes, which can lower vision accuracy.
     """
     try:
-        img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+        img = Image.open(io.BytesIO(image_bytes))
+        fmt = (img.format or "").upper()
+        img = img.convert("RGB")
         buf = io.BytesIO()
         img.save(buf, format="PNG")
-        return buf.getvalue()
+        out = buf.getvalue()
+        if fmt and fmt != "PNG":
+            logger.debug("Converted input image %s -> PNG (%d bytes -> %d bytes)", fmt, len(image_bytes), len(out))
+        else:
+            logger.debug("Input image already decodable; normalized to PNG (%d bytes -> %d bytes)", len(image_bytes), len(out))
+        return out
     except Exception:
         # If PIL can't decode it, fall back to original bytes.
+        logger.debug("PIL decode failed; using original bytes (%d bytes)", len(image_bytes))
         return image_bytes
 
 def _to_data_url(image_bytes: bytes, mime: str = "image/png") -> str:
@@ -118,12 +131,14 @@ def _preprocess_chat_image(image_bytes: bytes) -> Image.Image:
     x1 = int(w * 0.02)
     x2 = int(w * 0.98)
 
+    logger.debug("Preprocess chat ROI crop: (x1=%d, y1=%d, x2=%d, y2=%d) from (w=%d, h=%d)", x1, y1, x2, y2, w, h)
     roi = img.crop((x1, y1, x2, y2))
 
     # Powiększ, zwiększ kontrast i delikatnie wyostrz.
     roi = roi.resize((roi.width * 2, roi.height * 2), Image.LANCZOS)
     roi = ImageEnhance.Contrast(roi).enhance(1.35)
     roi = roi.filter(ImageFilter.UnsharpMask(radius=2, percent=160, threshold=3))
+    logger.debug("Preprocess chat ROI output size: %s", roi.size)
     return roi
 
 
@@ -142,6 +157,7 @@ def _make_overlapping_slices(img: Image.Image, parts: int = 3, overlap: float = 
         y2 = int((i + 1) * base) + (ov if i < parts - 1 else 0)
         y1 = max(0, y1)
         y2 = min(h, y2)
+        logger.debug("Slice %d/%d: y1=%d y2=%d (overlap=%d)", i + 1, parts, y1, y2, ov)
         crop = img.crop((0, y1, w, y2))
         buf = io.BytesIO()
         crop.save(buf, format="PNG")
@@ -193,6 +209,8 @@ def _detect_expected_max_rank(image_bytes: bytes, model: str) -> Optional[int]:
     )
 
     timeout_s = env_int("OPENAI_TIMEOUT_SECONDS", 90)
+    logger.debug("Detecting expected_max_rank via bottom-crop OCR")
+    logger.debug("Chat slice OCR request: bytes=%d model=%s roster=%d", len(slice_bytes), model, len(roster))
     resp = client.responses.parse(
         model=model,
         input=[
@@ -212,7 +230,10 @@ def _detect_expected_max_rank(image_bytes: bytes, model: str) -> Optional[int]:
 
     out = resp.output_parsed
     if out and out.expected_max_rank and out.expected_max_rank > 0:
-        return int(out.expected_max_rank)
+        emr = int(out.expected_max_rank)
+        logger.debug("Detected expected_max_rank=%d", emr)
+        return emr
+    logger.debug("Failed to detect expected_max_rank")
     return None
 
 
@@ -240,6 +261,7 @@ ROSTER:
     data_url = _to_data_url(slice_bytes)
     timeout_s = env_int("OPENAI_TIMEOUT_SECONDS", 90)
 
+    logger.debug("Parsing chat slice (%d bytes) with model=%s", len(slice_bytes), model)
     resp = client.responses.parse(
         model=model,
         input=[
@@ -258,7 +280,9 @@ ROSTER:
     )
 
     out = resp.output_parsed
-    return out.players if out and out.players else []
+    players = out.players if out and out.players else []
+    logger.debug("Chat slice parsed: %d players", len(players))
+    return players
 
 
 def _merge_players(lists: List[List[PlayerScore]]) -> List[PlayerScore]:
@@ -294,26 +318,34 @@ def _merge_players(lists: List[List[PlayerScore]]) -> List[PlayerScore]:
 def _chat_needs_repair(players: Optional[List[PlayerScore]], expected_max_rank: Optional[int] = None) -> bool:
     """Decide whether we should re-run OCR in robust mode."""
     if not players:
+        logger.debug("Chat repair: players empty")
         return True
 
     ranks = [p.rank for p in players if isinstance(p.rank, int)]
     if not ranks:
+        logger.debug("Chat repair: no valid ranks")
         return True
 
     if len(set(ranks)) != len(ranks):
+        logger.debug("Chat repair: duplicate ranks detected")
         return True
 
     mx = int(expected_max_rank) if expected_max_rank and expected_max_rank > 0 else max(ranks)
     if mx <= 0:
+        logger.debug("Chat repair: mx<=0")
         return True
 
     # Hard validation: do we have a full 1..mx set?
     if set(ranks) != set(range(1, mx + 1)):
+        missing = sorted(set(range(1, mx + 1)) - set(ranks))
+        extra = sorted(set(ranks) - set(range(1, mx + 1)))
+        logger.debug("Chat repair: rank set mismatch (mx=%d) missing=%s extra=%s", mx, missing, extra)
         return True
 
     # Extra: if many names look like OCR garbage, robust mode often fixes it.
     suspicious = sum(1 for p in players if _is_suspicious_name(p.name_raw))
     if suspicious >= max(2, mx // 10):
+        logger.debug("Chat repair: too many suspicious names (%d out of mx=%d)", suspicious, mx)
         return True
 
     return False
@@ -324,6 +356,7 @@ def _parse_chat_results_robust(image_bytes: bytes, model: str, parts: int) -> Li
     roster_path = env_str("ROSTER_PATH", "roster.json")
     roster = _load_roster(roster_path)
 
+    logger.debug("Robust chat parse: parts=%d", int(parts))
     pre = _preprocess_chat_image(image_bytes)
     slices = _make_overlapping_slices(pre, parts=max(1, int(parts)), overlap=0.16)
 
@@ -336,6 +369,7 @@ def _parse_chat_results_robust(image_bytes: bytes, model: str, parts: int) -> Li
             continue
 
     merged = _merge_players(all_lists)
+    logger.debug("Robust chat parse merged players=%d", len(merged))
     return merged
 
 
@@ -372,6 +406,7 @@ def _extract_war_mode_fallback(image_bytes: bytes, model: str) -> Optional[str]:
         "Nie zwracaj 'POLE BITWY' ani innych napisów. Jeśli nie widać – zwróć null."
     )
 
+    logger.debug("War mode fallback OCR crop (w=%d,h=%d) roi=(%d,%d,%d,%d)", w, h, x1, y1, x2, y2)
     resp = client.responses.parse(
         model=model,
         input=[
@@ -401,6 +436,7 @@ def _extract_war_mode_fallback(image_bytes: bytes, model: str) -> Optional[str]:
 # ----------------------------
 
 def parse_single_image(image_bytes: bytes, model: str) -> ParsedImage:
+    logger.debug("parse_single_image: input bytes=%d model=%s", len(image_bytes), model)
     image_bytes = _ensure_png_bytes(image_bytes)
     roster_path = env_str("ROSTER_PATH", "roster.json")
     roster = _load_roster(roster_path)
@@ -442,6 +478,7 @@ Zasady:
     data_url = _to_data_url(image_bytes)
     timeout_s = env_int("OPENAI_TIMEOUT_SECONDS", 90)
 
+    logger.debug("OpenAI structured parse: sending image (%d bytes)", len(image_bytes))
     resp = client.responses.parse(
         model=model,
         input=[
@@ -459,24 +496,43 @@ Zasady:
         timeout=timeout_s,
     )
 
-    return resp.output_parsed
+    out = resp.output_parsed
+    if out:
+        logger.debug("parse_single_image result: kind=%s conf=%.2f notes=%s", out.kind, out.confidence, (out.notes or ""))
+        if out.kind == "chat_results" and out.chat_results:
+            logger.debug("chat_results players=%d expected_max_rank=%s", len(out.chat_results.players or []), out.chat_results.expected_max_rank)
+        if out.kind == "war_summary" and out.war_summary:
+            ws = out.war_summary
+            logger.debug("war_summary %s %d-%d mode=%s", ws.result, ws.our_score, ws.opponent_score, ws.war_mode)
+    else:
+        logger.debug("parse_single_image: OpenAI returned no parsed output")
+    return out
 
 
 def parse_war_from_images(
     images: List[bytes],
-    model: str
+    model: str,
+    trace_id: Optional[str] = None,
 ) -> Tuple[Optional[WarSummary], Optional[List[PlayerScore]], Optional[int], List[ParsedImage]]:
     """
     images: lista obrazków (typowo 2 szt.: chat + war summary)
     Zwraca: summary, players, parsed_debug
     """
+    token = None
+    if trace_id:
+        token = set_trace_id(trace_id)
+
+    logger.info("START parse_war_from_images: images=%d model=%s", len(images), model)
+
     parsed_debug: List[ParsedImage] = []
     parsed_with_bytes: List[tuple[bytes, ParsedImage]] = []
 
     # Ensure consistent PNG bytes for all inputs.
     images_png = [_ensure_png_bytes(b) for b in images]
+    logger.debug("Normalized images to PNG: sizes=%s", [len(b) for b in images_png])
 
-    for b in images_png:
+    for idx, b in enumerate(images_png):
+        logger.debug("Parsing image #%d/%d", idx + 1, len(images_png))
         p = parse_single_image(b, model=model)
         parsed_debug.append(p)
         parsed_with_bytes.append((b, p))
@@ -496,34 +552,49 @@ def parse_war_from_images(
             expected_max_rank = p.chat_results.expected_max_rank
             chat_image_bytes = b
 
+    logger.debug("Selected summary=%s chat=%s", bool(summary_image_bytes), bool(chat_image_bytes))
+    logger.debug("Initial expected_max_rank=%s players=%s", expected_max_rank, (len(players) if players else None))
+
     if chat_image_bytes and (not expected_max_rank or expected_max_rank <= 0):
         expected_max_rank = _detect_expected_max_rank(chat_image_bytes, model=model)
     if players and (not expected_max_rank or expected_max_rank <= 0):
         ranks = [p.rank for p in players if isinstance(p.rank, int) and p.rank > 0]
         expected_max_rank = max(ranks) if ranks else None
 
+    logger.debug("After expected_max_rank inference: %s", expected_max_rank)
+
     # Jeśli chat wyszedł podejrzany (braki/duplikaty/śmieciowe nicki), spróbuj robust OCR.
     if chat_image_bytes and _chat_needs_repair(players, expected_max_rank):
         primary_parts = env_int("OPENAI_CHAT_SLICES", 4)
         fallback_parts = env_int("OPENAI_CHAT_SLICES_FALLBACK", 6)
 
+        logger.info("Chat flagged as suspicious -> robust mode (parts=%d, fallback=%d)", primary_parts, fallback_parts)
+
         cand = _parse_chat_results_robust(chat_image_bytes, model=model, parts=primary_parts)
+        logger.debug("Robust(primary) produced %d players", len(cand or []))
         if cand and not _chat_needs_repair(cand, expected_max_rank):
             players = cand
+            logger.info("Robust(primary) accepted")
         elif cand:
             # Merge with the original as a last resort (choose better lines per rank).
             players = _merge_players([players or [], cand])
+            logger.info("Robust(primary) merged with initial -> %d players", len(players or []))
 
         if _chat_needs_repair(players, expected_max_rank) and fallback_parts != primary_parts:
+            logger.info("Still suspicious -> robust fallback (parts=%d)", fallback_parts)
             cand2 = _parse_chat_results_robust(chat_image_bytes, model=model, parts=fallback_parts)
+            logger.debug("Robust(fallback) produced %d players", len(cand2 or []))
             if cand2 and not _chat_needs_repair(cand2, expected_max_rank):
                 players = cand2
+                logger.info("Robust(fallback) accepted")
             elif cand2:
                 players = _merge_players([players or [], cand2])
+                logger.info("Robust(fallback) merged -> %d players", len(players or []))
 
     # Jeśli w ogóle nie wykryliśmy chatu (zła klasyfikacja), spróbuj robust na wszystkich obrazkach
     # i wybierz ten z największą liczbą pozycji.
     if players is None:
+        logger.info("Chat not detected in any image -> trying robust parse on all images")
         best: List[PlayerScore] = []
         primary_parts = env_int("OPENAI_CHAT_SLICES", 4)
         for b in images_png:
@@ -537,11 +608,19 @@ def parse_war_from_images(
             players = best
             ranks = [p.rank for p in players if isinstance(p.rank, int) and p.rank > 0]
             expected_max_rank = max(ranks) if ranks else expected_max_rank
+            logger.info("Robust-all-images selected %d players (expected_max_rank=%s)", len(players), expected_max_rank)
 
     # Fallback na war_mode: jeśli model pominął tryb na pełnym screenie, doczytaj z cropa
     if summary and (not summary.war_mode or not summary.war_mode.strip()) and summary_image_bytes:
+        logger.info("war_mode missing -> fallback OCR")
         wm = _extract_war_mode_fallback(summary_image_bytes, model=model)
         if wm:
             summary.war_mode = wm
+            logger.info("war_mode fallback success: %s", wm)
+
+    logger.info("END parse_war_from_images: summary=%s players=%s expected_max_rank=%s", bool(summary), (len(players) if players else None), expected_max_rank)
+
+    if token is not None:
+        reset_trace_id(token)
 
     return summary, players, expected_max_rank, parsed_debug
