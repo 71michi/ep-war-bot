@@ -39,6 +39,7 @@ async def start_keepalive_server():
     async def health(_request):
         return web.Response(text="ok")
 
+    app.router.add_get("/", health)
     app.router.add_get("/health", health)
 
     runner = web.AppRunner(app)
