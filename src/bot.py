@@ -201,34 +201,61 @@ WAR_POSTS: Dict[int, WarPost] = {}
 
 
 def _generate_key_variants(key: str) -> List[str]:
-    """Generate a small set of OCR-robust variants for a canonical key."""
+    """Generate a small set of OCR-robust variants for a canonical key.
+
+    IMPORTANT: We generate *combinations* of a few transforms (2 rounds) so we can
+    recover cases like stylized "ɭαяσ" -> canonical "lars" -> variants "laro" -> "jaro".
+    """
     if not key:
         return []
-    variants = {key}
 
-    # Collapse repeated letters: leggendarny -> legendarny
-    variants.add(re.sub(r"(.)\1+", r"\1", key))
+    variants: set[str] = {key}
 
-    # Common OCR confusions in these fonts
-    if "k" in key:
-        variants.add(key.replace("k", "h"))
-    if "h" in key:
-        variants.add(key.replace("h", "k"))
+    def _step(v: str) -> set[str]:
+        out: set[str] = set()
 
-    # First letter confusion seen with Cyrillic Я->r (Jaro case)
-    if key.startswith("r"):
-        variants.add("j" + key[1:])
-    if key.startswith("j"):
-        variants.add("r" + key[1:])
+        # Collapse repeated letters: leggendarny -> legendarny
+        out.add(re.sub(r"(.)\1+", r"\1", v))
 
-    # Last letter confusion i<->a (Washi/Waśka case); used as a variant only
-    if key.endswith("i"):
-        variants.add(key[:-1] + "a")
-    if key.endswith("a"):
-        variants.add(key[:-1] + "i")
+        # Common OCR confusions in these fonts
+        if "k" in v:
+            out.add(v.replace("k", "h"))
+        if "h" in v:
+            out.add(v.replace("h", "k"))
 
-    out = [v for v in variants if v]
-    out.sort()
+        # First letter confusions (Jaro case)
+        if v.startswith("r"):
+            out.add("j" + v[1:])
+        if v.startswith("j"):
+            out.add("r" + v[1:])
+        if v.startswith("l"):
+            out.add("j" + v[1:])
+
+        # Last letter confusion i<->a (Washi/Waśka case)
+        if v.endswith("i"):
+            out.add(v[:-1] + "a")
+        if v.endswith("a"):
+            out.add(v[:-1] + "i")
+
+        # Stylized 's' used as 'o' at end (ɭαяσ case)
+        if v.endswith("s"):
+            out.add(v[:-1] + "o")
+        if v.endswith("o"):
+            out.add(v[:-1] + "s")
+
+        return {x for x in out if x}
+
+    # Two rounds to allow chaining (e.g. lars -> laro -> jaro)
+    for _ in range(2):
+        cur = list(variants)
+        for v in cur:
+            variants.update(_step(v))
+
+        # Cap the set to avoid blowups (roster is small; we don't need many variants)
+        if len(variants) > 40:
+            variants = set(sorted(variants)[:40])
+
+    out = sorted({v for v in variants if v})
     return out
 
 
@@ -275,6 +302,13 @@ def _candidates_for_line(
         logger.debug("  candidate via exact(cleaned): %s score=925", resolved)
 
     # 4) Fuzzy on canonical keys (+ OCR variants)
+    # We use a robust scorer: max(ratio, partial_ratio) so that near-misses like
+    # "zisza" -> "zawisza" or "theviet" -> "thevil" still match.
+    def _robust_scorer(a: str, b: str, **_kwargs) -> float:
+        try:
+            return float(max(fuzz.ratio(a, b), fuzz.partial_ratio(a, b)))
+        except Exception:
+            return float(fuzz.ratio(a, b))
     if target_key:
         base_last = target_key[-1]
         best_by_idx: Dict[int, float] = {}
@@ -283,7 +317,7 @@ def _candidates_for_line(
         logger.debug("  fuzzy canonical variants: %s", variants)
 
         for k in variants:
-            for _rk, score, idx in process.extract(k, roster_keys, scorer=fuzz.ratio, limit=6):
+            for _rk, score, idx in process.extract(k, roster_keys, scorer=_robust_scorer, limit=6):
                 if score is None:
                     continue
                 s = float(score)
@@ -326,6 +360,7 @@ def apply_roster_mapping(lines_by_rank: Dict[int, WarLine], roster: List[str]) -
 
     roster_lower = {r.lower(): r for r in roster}
     roster_keys = [canonical_key(r) for r in roster]
+    roster_exact = {normalize_display(r): r for r in roster}
 
     cand_by_rank: Dict[int, List[Tuple[float, str]]] = {}
     for r, ln in lines_by_rank.items():
@@ -334,6 +369,16 @@ def apply_roster_mapping(lines_by_rank: Dict[int, WarLine], roster: List[str]) -
     assigned: Dict[int, str] = {}
     used: set[str] = set()
     remaining = set(cand_by_rank.keys())
+
+    # Phase 0: lock exact-case matches (prevents random order issues with de-dup)
+    for r, ln in lines_by_rank.items():
+        cleaned = normalize_display(ln.name_raw)
+        exact = roster_exact.get(cleaned)
+        if exact and exact not in used:
+            assigned[r] = exact
+            used.add(exact)
+            remaining.discard(r)
+            logger.debug("Pre-assign exact-case: rank %s cleaned=%r -> %s", r, cleaned, exact)
 
     # Greedy max-first assignment to avoid duplicates (Washi vs Waśka etc.)
     while remaining:
@@ -345,7 +390,7 @@ def apply_roster_mapping(lines_by_rank: Dict[int, WarLine], roster: List[str]) -
             if not cands:
                 continue
             score, _name = cands[0]
-            if score > best_score:
+            if score > best_score or (score == best_score and (best_rank is None or r < best_rank)):
                 best_score = score
                 best_rank = r
 
