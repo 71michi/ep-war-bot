@@ -1,99 +1,62 @@
+# -*- coding: utf-8 -*-
+"""
+Nick normalization utilities for Empires & Puzzles war screenshots.
+
+Goals:
+- Normalize stylized / homoglyph nicknames into a canonical form for matching.
+- Map nicknames to your alliance roster (roster.json) so the bot always outputs roster names.
+- Support aliases.json (exact + canonical maps).
+"""
+
+from __future__ import annotations
+
 import json
 import os
 import re
-from typing import Optional, Dict, Any, List, Tuple
+import unicodedata
+from functools import lru_cache
+from typing import Dict, Optional, Tuple, List
 
 from rapidfuzz import fuzz
 
 
-# -----------------------------
-# Character normalization map
-# -----------------------------
-# NOTE:
-# - This map is used to build a comparison-friendly form for OCR / stylized nicknames.
-# - We keep Polish diacritics intact here; folding is done separately in _key().
-_CHAR_MAP: dict[str, str] = {
+# --- Character map (homoglyphs, OCR substitutions, stylistic variants) ---
+# Note: Values can be multiple characters (e.g. "ч" -> "ch").
+_CHAR_MAP: Dict[str, str] = {
     # common substitutions / OCR
-    "@": "a",
-    "$": "s",
-    "0": "o",
-    "1": "i",
-    "!": "i",
-    "¡": "i",
-    "|": "i",
-    "£": "l",
-    "ð": "d",
-    "ɭ": "l",
+    "@": "a", "$": "s",
+    "0": "o", "1": "i", "!": "i", "¡": "i", "|": "i",
+    "£": "l", "ð": "d", "ɭ": "l",
     "√": "w",
 
     # extra common OCR / symbols
-    "€": "e",
-    "¢": "c",
-    "¥": "y",
+    "€": "e", "¢": "c", "¥": "y",
     "§": "s",
     "ß": "b",
-
-    # trademark-ish / punctuation we usually want to drop
-    "™": "",
-    "®": "",
-    "©": "c",
-    "°": "",
-    "•": "",
-    "·": "",
-    "⋅": "",
-    "—": "",
-    "–": "",
-    "’": "",
-    "'": "",
-    "`": "",
-    "“": "",
-    "”": "",
-    '"': "",
+    "™": "", "®": "", "©": "c",
+    "°": "", "•": "", "·": "", "⋅": "",
+    "—": "", "–": "", "-": "",
+    "’": "", "'": "", "`": "",
+    "“": "", "”": "", '"': "",
 
     # greek (lower)
-    "α": "a",
-    "β": "b",
-    "γ": "g",
-    "δ": "d",
-    "ε": "e",
-    "ζ": "z",
-    "η": "n",
-    "ι": "i",
-    "κ": "k",
-    "λ": "l",
-    "μ": "m",
-    "ν": "v",
-    "ο": "o",
-    "ρ": "p",
-    "σ": "s",
-    "ς": "s",
-    "τ": "t",
-    "υ": "u",
-    "ω": "w",
+    "α": "a", "β": "b", "γ": "g", "δ": "d", "ε": "e", "ζ": "z",
+    "η": "n", "ι": "i", "κ": "k", "λ": "l", "μ": "m", "ν": "v",
+    "ο": "o", "ρ": "p", "σ": "s", "ς": "s", "τ": "t", "υ": "u", "ω": "w",
 
-    # greek (upper) – often confused with latin
-    "Α": "a",
-    "Β": "b",
-    "Ε": "e",
-    "Ζ": "z",
-    "Η": "h",
-    "Ι": "i",
-    "Κ": "k",
-    "Μ": "m",
-    "Ν": "n",
-    "Ο": "o",
-    "Ρ": "p",
-    "Τ": "t",
-    "Υ": "u",
-    "Χ": "x",
+    # greek (upper) – often appear as latin-like
+    "Α": "a", "Β": "b", "Ε": "e", "Ζ": "z", "Η": "h", "Ι": "i",
+    "Κ": "k", "Μ": "m", "Ν": "n", "Ο": "o", "Ρ": "p", "Τ": "t",
+    "Υ": "u", "Χ": "x",
 
-    # cyrillic (subset + homoglyphs)
+    # cyrillic (subset + extra) – homoglyphs
     "А": "a", "а": "a",
     "В": "b", "в": "b",
     "Б": "b", "б": "b",
     "Е": "e", "е": "e",
     "Є": "e", "є": "e",
     "Ё": "e", "ё": "e",
+
     "Г": "g", "г": "g",
     "Д": "d", "д": "d",
     "Л": "l", "л": "l",
@@ -101,6 +64,7 @@ _CHAR_MAP: dict[str, str] = {
     "З": "z", "з": "z",
     "Ч": "ch", "ч": "ch",
     "Ф": "f", "ф": "f",
+
     "И": "i", "и": "i",
     "І": "i", "і": "i",
     "К": "k", "к": "k",
@@ -115,242 +79,243 @@ _CHAR_MAP: dict[str, str] = {
     "Я": "r", "я": "r",
     "Ш": "sh", "ш": "sh",
     "Ѕ": "s", "ѕ": "s",
+
     "Х": "x", "х": "x",
     "Ы": "y", "ы": "y",
     "Ж": "zh", "ж": "zh",
     "Ц": "c", "ц": "c",
 
-    # latin-ish
-    "ø": "o",
-    "Ø": "o",
+    # latin special letters (seen in your cases)
+    "ø": "o", "Ø": "o",
 
     # extra Cyrillic variants seen in your cases
     "ѵ": "w",   # izhitsa often used as "w"
-    "Ѡ": "w",
-    "ѡ": "w",
+    "Ѡ": "w", "ѡ": "w",
 
     # small caps / stylistic latin
-    "ᴀ": "a",
-    "ʙ": "b",
-    "ᴄ": "c",
-    "ᴅ": "d",
-    "ᴇ": "e",
-    "ꜰ": "f",
-    "ɢ": "g",
-    "ʜ": "h",
-    "ɪ": "i",
-    "ᴊ": "j",
-    "ᴋ": "k",
-    "ʟ": "l",
-    "ᴍ": "m",
-    "ɴ": "n",
-    "ᴏ": "o",
-    "ᴘ": "p",
-    "ʀ": "r",
-    "ᴛ": "t",
-    "ᴜ": "u",
-    "ᴠ": "v",
-    "ᴡ": "w",
-    "ʏ": "y",
-    "ᴢ": "z",
+    "ᴀ": "a", "ʙ": "b", "ᴄ": "c", "ᴅ": "d", "ᴇ": "e", "ꜰ": "f",
+    "ɢ": "g", "ʜ": "h", "ɪ": "i", "ᴊ": "j", "ᴋ": "k", "ʟ": "l",
+    "ᴍ": "m", "ɴ": "n", "ᴏ": "o", "ᴘ": "p", "ʀ": "r", "ᴛ": "t",
+    "ᴜ": "u", "ᴠ": "v", "ᴡ": "w", "ʏ": "y", "ᴢ": "z",
 }
 
-# Polish folding used only for matching keys
-_PL_FOLD = str.maketrans({
-    "ą": "a", "ć": "c", "ę": "e", "ł": "l", "ń": "n", "ó": "o", "ś": "s", "ż": "z", "ź": "z",
-    "Ą": "a", "Ć": "c", "Ę": "e", "Ł": "l", "Ń": "n", "Ó": "o", "Ś": "s", "Ż": "z", "Ź": "z",
-})
+
+_G3W_PREFIX_RE = re.compile(r"^\s*\[\s*g3w\s*\]\s*", re.IGNORECASE)
 
 
-# -----------------------------
-# Basic normalization utilities
-# -----------------------------
+def strip_g3w_prefix(name: str) -> str:
+    return _G3W_PREFIX_RE.sub("", (name or "").strip())
 
-_PREFIX_RE = re.compile(r"^\s*\[[^\]]*\]\s*")  # leading [tag] like [g3w]
-_BRACKET_TAG_RE = re.compile(r"(\[[^\]]*\])", flags=re.UNICODE)
 
-# decorative brackets/stars etc. We'll trim from both ends repeatedly
-_TRIM_CHARS = " \t\n\r\u200b•·⋅—–-:|<>[](){}⟪⟫《》◊◇♦★☆✦✧✩✪✫✬✭✮✯❖⌂™®"
+def _strip_diacritics(s: str) -> str:
+    # Keep base letters, remove combining marks
+    nkfd = unicodedata.normalize("NFKD", s)
+    return "".join(ch for ch in nkfd if not unicodedata.combining(ch))
 
-def strip_prefix_tags(name: str) -> str:
-    """
-    Removes leading bracket tags like [g3w] (one or more).
-    """
-    s = (name or "").strip()
-    while True:
-        m = _PREFIX_RE.match(s)
-        if not m:
-            break
-        s = s[m.end():].lstrip()
-    return s
 
 def normalize_display(name: str) -> str:
     """
-    Cleans a raw nickname from OCR/stylized symbols into a readable form.
-    This function is used for matching keys and as a display fallback.
+    A "cleaned" human-readable version of the raw nickname (for debugging / fallback).
+    We do NOT force roster formatting here.
     """
-    s = strip_prefix_tags(name)
+    s = strip_g3w_prefix(name)
+    s = s.strip()
 
-    # map characters
+    # Replace mapped chars
     out = []
     for ch in s:
-        out.append(_CHAR_MAP.get(ch, ch))
+        if ch in _CHAR_MAP:
+            out.append(_CHAR_MAP[ch])
+        else:
+            out.append(ch)
     s = "".join(out)
 
-    # collapse whitespace
+    # Trim obvious decorations around
+    s = re.sub(r"[⟪⟫《》◊◇◆★☆\u2605\u2606]+", " ", s)
     s = re.sub(r"\s+", " ", s).strip()
-
-    # trim decorative chars from ends
-    s = s.strip(_TRIM_CHARS)
-
-    # remove duplicate spaces again
-    s = re.sub(r"\s+", " ", s).strip()
-
     return s
 
-def _key(s: str) -> str:
+
+def canonicalize(name: str) -> str:
     """
-    Comparison key used for fuzzy matching.
-    - normalize_display (removes stylings)
-    - fold Polish diacritics
-    - lower
-    - keep only [a-z0-9 ] and collapse spaces
+    Canonical form for matching: lowercase ascii-ish, alnum only.
     """
-    s = normalize_display(s)
-    s = s.translate(_PL_FOLD)
-    s = s.lower()
-    s = re.sub(r"\s+", " ", s).strip()
-    s = re.sub(r"[^a-z0-9 ]+", "", s)
-    return s.strip()
+    s = normalize_display(name).lower()
+    s = _strip_diacritics(s)
+
+    # Replace any leftover whitespace/punctuation with nothing
+    s = re.sub(r"[^a-z0-9]+", "", s)
+    return s
 
 
-# -----------------------------
-# Aliases file support
-# -----------------------------
-
-def _load_aliases(aliases_path: str) -> Dict[str, Any]:
+@lru_cache(maxsize=64)
+def _load_aliases_cached(path: str) -> Dict[str, Dict[str, str]]:
     try:
-        with open(aliases_path, "r", encoding="utf-8") as f:
-            return json.load(f) or {}
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        exact = {str(k): str(v) for k, v in (data.get("exact") or {}).items()}
+        canonical = {canonicalize(k): str(v) for k, v in (data.get("canonical") or {}).items()}
+        return {"exact": exact, "canonical": canonical}
     except FileNotFoundError:
-        return {}
+        return {"exact": {}, "canonical": {}}
     except Exception:
-        return {}
+        # If aliases file is broken, fail "soft"
+        return {"exact": {}, "canonical": {}}
 
-def normalize_with_aliases(name_raw: str, aliases_path: str) -> Optional[str]:
+
+def normalize_with_aliases(name_raw: str, aliases_path: str = "aliases.json") -> str:
     """
-    Uses aliases.json with structure like:
-    {
-      "exact": { "яга": "Jaro", ... },
-      "canonical": { "bush22": "Bush22", "raga": "Jaro", ... }
-    }
+    Returns mapped nickname based on aliases.json or empty string if not matched.
     """
-    data = _load_aliases(aliases_path)
-    exact = data.get("exact", {}) or {}
-    canonical = data.get("canonical", {}) or {}
+    aliases = _load_aliases_cached(os.path.abspath(aliases_path))
+    raw = strip_g3w_prefix(name_raw)
 
-    raw = (name_raw or "").strip()
+    if raw in aliases["exact"]:
+        return aliases["exact"][raw].strip()
 
-    # exact match (raw, or raw after simple strip of leading tags)
-    if raw in exact:
-        return exact[raw]
-    stripped = strip_prefix_tags(raw)
-    if stripped in exact:
-        return exact[stripped]
+    c = canonicalize(raw)
+    if c in aliases["canonical"]:
+        return aliases["canonical"][c].strip()
 
-    # canonical match by key
-    k = _key(raw)
-    if k in canonical:
-        return canonical[k]
-
-    # also try key of stripped (helps if raw has [g3w])
-    ks = _key(stripped)
-    if ks in canonical:
-        return canonical[ks]
-
-    return None
+    return ""
 
 
-# -----------------------------
-# Roster unique resolver (nicki zawsze jak roster)
-# -----------------------------
-
-def resolve_players_to_roster_unique(
-    name_raw_by_rank: List[Tuple[int, str]],
-    roster: List[str],
-    aliases_path: str,
-    min_score_warn: int = 78,
-) -> Dict[int, str]:
+def roster_autocorrect(name: str, roster: List[str], min_score: int = 88) -> str:
     """
-    Returns mapping: rank -> EXACT nickname from roster.
-
-    Properties:
-    - Always outputs only names from roster (if roster is non-empty).
-    - Unique assignment: each roster name used at most once.
-    - If there are fewer players (e.g. 29) than roster (e.g. 30), one roster member will remain unused (OK).
+    Fuzzy-match 'name' to one of roster names. Returns roster name or empty string.
     """
     if not roster:
-        return {rank: normalize_display(raw) for rank, raw in name_raw_by_rank}
+        return ""
 
-    # 1) pre-assign via aliases if alias points to an exact roster name
-    assigned_rank_to_roster: Dict[int, str] = {}
-    used_roster: set[str] = set()
+    cn = canonicalize(name)
+    if not cn:
+        return ""
 
-    pending: List[Tuple[int, str]] = []
-    for rank, raw in name_raw_by_rank:
-        ali = normalize_with_aliases(raw, aliases_path)
-        if ali and ali in roster and ali not in used_roster:
-            assigned_rank_to_roster[rank] = ali
-            used_roster.add(ali)
-        else:
-            pending.append((rank, raw))
+    best_name = ""
+    best_score = -1
 
-    if not pending:
-        return assigned_rank_to_roster
+    for r in roster:
+        score = fuzz.WRatio(cn, canonicalize(r))
+        if score > best_score:
+            best_score = score
+            best_name = r
 
-    # 2) build all edges (score) for remaining
-    roster_keys = [_key(r) for r in roster]
-    pending_keys = [_key(raw) for _rank, raw in pending]
+    if best_score >= min_score:
+        return best_name
+    return ""
 
-    edges: List[Tuple[int, int, int]] = []  # (score, pending_i, roster_j)
-    for i, pk in enumerate(pending_keys):
-        for j, rk in enumerate(roster_keys):
-            if roster[j] in used_roster:
-                continue
-            score = fuzz.WRatio(pk, rk)
-            edges.append((score, i, j))
 
-    edges.sort(reverse=True, key=lambda x: x[0])
+def map_name_to_roster(name_raw: str, roster: List[str], aliases_path: str = "aliases.json", min_score: int = 88) -> Tuple[str, int]:
+    """
+    Map a raw nickname to a roster name.
 
-    assigned_pending: set[int] = set()
-    assigned_roster_idx: set[int] = set()
+    Returns (roster_name, confidence_score_0_100).
+    """
+    if not roster:
+        return ("", 0)
 
-    # 3) greedy unique matching
-    for score, i, j in edges:
-        if i in assigned_pending or j in assigned_roster_idx:
+    # 1) alias exact/canonical
+    a = normalize_with_aliases(name_raw, aliases_path)
+    if a:
+        # Ensure it's actually in roster; if not, try match it to roster
+        if a in roster:
+            return (a, 100)
+        m = roster_autocorrect(a, roster, min_score=70)
+        if m:
+            return (m, 95)
+
+    # 2) direct exact (case-insensitive)
+    raw = strip_g3w_prefix(name_raw).strip()
+    for r in roster:
+        if raw.lower() == r.lower():
+            return (r, 100)
+
+    # 3) fuzzy to roster
+    cn = canonicalize(name_raw)
+    best_name = ""
+    best_score = -1
+    for r in roster:
+        score = fuzz.WRatio(cn, canonicalize(r))
+        if score > best_score:
+            best_score = score
+            best_name = r
+
+    if best_name:
+        return (best_name, int(best_score))
+    return ("", 0)
+
+
+def assign_unique_roster_names(
+    raw_names: List[str],
+    roster: List[str],
+    aliases_path: str = "aliases.json",
+) -> Tuple[List[str], List[int]]:
+    """
+    Assign each raw name to a UNIQUE roster name (greedy max-score matching).
+    Returns (assigned_roster_names, confidence_scores).
+    """
+    n_players = len(raw_names)
+    if n_players == 0:
+        return ([], [])
+
+    # Precompute scores for all (player, roster) pairs.
+    pairs = []
+    raw_canons = [canonicalize(x) for x in raw_names]
+    roster_canons = [canonicalize(r) for r in roster]
+
+    # Alias boosting: if alias maps to a roster name, give it a strong bonus.
+    alias_map = _load_aliases_cached(os.path.abspath(aliases_path))
+    alias_to_roster = {}
+    # exact alias can include decorations - keep raw exact keys
+    for k, v in alias_map.get("exact", {}).items():
+        alias_to_roster[k] = v
+    for k, v in alias_map.get("canonical", {}).items():
+        alias_to_roster[k] = v
+
+    for i in range(n_players):
+        raw = strip_g3w_prefix(raw_names[i]).strip()
+        raw_c = raw_canons[i]
+        for j in range(len(roster)):
+            base = fuzz.WRatio(raw_c, roster_canons[j])
+
+            bonus = 0
+            # Exact alias hit
+            if raw in alias_map["exact"] and alias_map["exact"][raw] == roster[j]:
+                bonus = 30
+            # Canonical alias hit
+            if raw_c in alias_map["canonical"] and alias_map["canonical"][raw_c] == roster[j]:
+                bonus = max(bonus, 25)
+
+            score = min(100, int(base + bonus))
+            pairs.append((score, i, j))
+
+    pairs.sort(reverse=True, key=lambda x: x[0])
+
+    assigned_player = [False] * n_players
+    assigned_roster = [False] * len(roster)
+    out_names = [""] * n_players
+    out_scores = [0] * n_players
+
+    for score, i, j in pairs:
+        if assigned_player[i] or assigned_roster[j]:
             continue
-        rname = roster[j]
-        if rname in used_roster:
+        assigned_player[i] = True
+        assigned_roster[j] = True
+        out_names[i] = roster[j]
+        out_scores[i] = score
+
+    # Any unassigned players: assign remaining roster entries (if any), best available score.
+    remaining_roster = [idx for idx, used in enumerate(assigned_roster) if not used]
+    for i in range(n_players):
+        if out_names[i]:
             continue
-
-        rank, _raw = pending[i]
-        assigned_rank_to_roster[rank] = rname
-        used_roster.add(rname)
-        assigned_pending.add(i)
-        assigned_roster_idx.add(j)
-
-    # 4) fallback: assign remaining ranks to remaining roster (best remaining match)
-    remaining_roster = [r for r in roster if r not in used_roster]
-    for i, (rank, raw) in enumerate(pending):
-        if i in assigned_pending:
-            continue
-
         if remaining_roster:
-            pk = _key(raw)
-            best = max(remaining_roster, key=lambda r: fuzz.WRatio(pk, _key(r)))
-            assigned_rank_to_roster[rank] = best
-            remaining_roster.remove(best)
+            j = remaining_roster.pop(0)
+            out_names[i] = roster[j]
+            out_scores[i] = int(fuzz.WRatio(raw_canons[i], roster_canons[j]))
         else:
-            assigned_rank_to_roster[rank] = roster[0]
+            # Shouldn't happen (players > roster), but keep safe
+            out_names[i] = raw_names[i]
+            out_scores[i] = 0
 
-    return assigned_rank_to_roster
+    return out_names, out_scores
