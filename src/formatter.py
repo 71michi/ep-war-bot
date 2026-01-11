@@ -10,8 +10,16 @@ def build_discord_message(summary: WarSummary, players: List[PlayerScore]) -> st
         # Format bez markdown-list (Discord lubi "1." przerabiać na listę)
         lines.append(f"[{p.rank:02d}] {nick} — {p.points}")
 
+    diff = int(summary.our_score) - int(summary.opponent_score)
+    if diff > 0:
+        badge = "🟢"
+    elif diff < 0:
+        badge = "🔴"
+    else:
+        badge = "⚪"
+
     header = (
-        f"**Wojna zakończona: {summary.result}**\n"
+        f"**Wojna zakończona: {badge} {summary.result} ({diff:+d})**\n"
         f"**{summary.our_alliance}** {summary.our_score} — {summary.opponent_score} **{summary.opponent_alliance}**\n"
     )
     if summary.war_mode:

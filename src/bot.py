@@ -518,8 +518,17 @@ def build_post(summary: WarSummary, players: List[PlayerScore], expected_max_ran
 def render_post(post: WarPost) -> str:
     s = post.summary
 
+    # Score diff: positive => win, negative => loss. Render wants a visible sign.
+    diff = int(s.our_score) - int(s.opponent_score)
+    if diff > 0:
+        badge = "🟢"
+    elif diff < 0:
+        badge = "🔴"
+    else:
+        badge = "⚪"
+
     header = (
-        f"**Wojna zakończona: {s.result}**\n"
+        f"**Wojna zakończona: {badge} {s.result} ({diff:+d})**\n"
         f"**{s.our_alliance}** {s.our_score} — {s.opponent_score} **{s.opponent_alliance}**\n"
     )
     if s.war_mode:
