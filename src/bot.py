@@ -48,6 +48,7 @@ WATCH_CHANNEL_ID = env_int("WATCH_CHANNEL_ID", 0)
 OPENAI_MODEL = env_str("OPENAI_MODEL", "gpt-4o-mini")
 ALIASES_PATH = env_str("ALIASES_PATH", "aliases.json")
 ROSTER_PATH = env_str("ROSTER_PATH", "roster.json")
+ROSTER_OVERRIDES_PATH = env_str("ROSTER_OVERRIDES_PATH", "roster_overrides.json")
 
 # When running on Render Free (no shell / no FS access), you can still get the full debug trace.
 # By default we attach per-run debug logs as a text file on Discord.
@@ -142,27 +143,112 @@ async def start_keepalive_server():
 # Roster helpers
 # ----------------------------
 
-_roster_cache: Tuple[float, List[str]] = (0.0, [])
+_roster_cache: Tuple[float, float, List[str]] = (0.0, 0.0, [])
+_roster_write_lock = asyncio.Lock()
 
 
-def load_roster() -> List[str]:
-    """Load roster.json with a tiny mtime cache."""
+def _load_roster_file(path: str) -> List[str]:
     import json
-    global _roster_cache
-
     try:
-        st = os.stat(ROSTER_PATH)
-        if _roster_cache[0] == st.st_mtime and _roster_cache[1]:
-            return _roster_cache[1]
-        with open(ROSTER_PATH, "r", encoding="utf-8") as f:
-            roster = json.load(f).get("roster", [])
-        roster = [str(x) for x in roster if str(x).strip()]
-        _roster_cache = (st.st_mtime, roster)
-        return roster
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        roster = data.get("roster", []) if isinstance(data, dict) else []
+        return [str(x) for x in roster if str(x).strip()]
     except FileNotFoundError:
         return []
     except Exception:
+        logger.exception("Failed to read roster file: %s", path)
         return []
+
+
+def load_roster() -> List[str]:
+    """Load roster from roster.json + roster_overrides.json (mtime cached)."""
+    global _roster_cache
+
+    try:
+        st_base = os.stat(ROSTER_PATH)
+        mtime_base = float(st_base.st_mtime)
+    except FileNotFoundError:
+        mtime_base = 0.0
+    except Exception:
+        mtime_base = 0.0
+
+    try:
+        st_ov = os.stat(ROSTER_OVERRIDES_PATH)
+        mtime_ov = float(st_ov.st_mtime)
+    except FileNotFoundError:
+        mtime_ov = 0.0
+    except Exception:
+        mtime_ov = 0.0
+
+    if _roster_cache[0] == mtime_base and _roster_cache[1] == mtime_ov and _roster_cache[2]:
+        return _roster_cache[2]
+
+    base = _load_roster_file(ROSTER_PATH)
+    ov = _load_roster_file(ROSTER_OVERRIDES_PATH)
+
+    merged: List[str] = []
+    seen: set[str] = set()
+    for name in (base + ov):
+        nm = str(name).strip()
+        if not nm:
+            continue
+        key = nm.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        merged.append(nm)
+
+    _roster_cache = (mtime_base, mtime_ov, merged)
+    return merged
+
+
+def _invalidate_roster_cache() -> None:
+    global _roster_cache
+    _roster_cache = (0.0, 0.0, [])
+
+
+async def add_to_roster_overrides(names: List[str]) -> List[str]:
+    """Add names to roster_overrides.json. Returns the list of actually added names."""
+    import json
+
+    clean: List[str] = []
+    for n in names:
+        nm = str(n).strip()
+        if not nm:
+            continue
+        if len(nm) > 64:
+            nm = nm[:64]
+        clean.append(nm)
+    if not clean:
+        return []
+
+    async with _roster_write_lock:
+        existing = _load_roster_file(ROSTER_OVERRIDES_PATH)
+        existing_keys = {x.casefold() for x in existing}
+
+        added: List[str] = []
+        for nm in clean:
+            k = nm.casefold()
+            if k in existing_keys:
+                continue
+            existing.append(nm)
+            existing_keys.add(k)
+            added.append(nm)
+
+        if not added:
+            return []
+
+        payload = {"roster": existing}
+        tmp_path = ROSTER_OVERRIDES_PATH + ".tmp"
+        os.makedirs(os.path.dirname(ROSTER_OVERRIDES_PATH) or ".", exist_ok=True)
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False, indent=2)
+        os.replace(tmp_path, ROSTER_OVERRIDES_PATH)
+
+        _invalidate_roster_cache()
+        logger.info("ADDROSTER: added=%s (overrides now=%d)", added, len(existing))
+        return added
 
 
 def resolve_to_roster(name_raw: str, name_norm_from_model: Optional[str], roster: List[str]) -> Optional[str]:
@@ -565,6 +651,7 @@ def render_post(post: WarPost) -> str:
         warn_lines.append(
             "Reply na tę wiadomość w formacie: `23 ropuch13 250` **albo** `23 Legendarny` (bez punktów = zachowaj istniejące)."
         )
+        warn_lines.append("Możesz też dodać nowy nick do rosteru: `ADDROSTER Krati` (albo wiele: `ADDROSTER Krati, NowyGracz`).")
         warn_lines.append("Po przetworzeniu poprawki bot usunie Twoją wiadomość.")
         msg += "\n" + "\n".join(warn_lines)
 
@@ -644,6 +731,123 @@ def _parse_manual_corrections(text: str) -> List[Tuple[int, str, Optional[int]]]
 
         out.append((rank, nick, points))
     return out
+
+
+def _parse_addroster(text: str) -> List[str]:
+    """Parse an ADDROSTER command.
+
+    Supported examples:
+      - "ADDROSTER Krati"
+      - "ADDROSTER: Krati, NowyGracz"
+      - "ADDROSTER\nKrati\nNowyGracz"
+    """
+    if not text:
+        return []
+
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    if not lines:
+        return []
+
+    first = lines[0]
+    m = re.match(r"^\s*ADDROSTER\b\s*[:\-]?\s*(.*)$", first, flags=re.IGNORECASE)
+    if not m:
+        return []
+
+    rest_first = (m.group(1) or "").strip()
+    rest_lines: List[str] = []
+    if rest_first:
+        rest_lines.append(rest_first)
+    if len(lines) > 1:
+        rest_lines.extend(lines[1:])
+
+    raw_joined = "\n".join(rest_lines).strip()
+    if not raw_joined:
+        return []
+
+    # Split by commas/newlines, keep internal spaces.
+    parts: List[str] = []
+    for chunk in raw_joined.split("\n"):
+        for p in chunk.split(","):
+            nm = p.strip()
+            if nm:
+                parts.append(nm)
+    return parts
+
+
+async def try_apply_addroster_command(
+    discord_client: discord.Client,
+    message: discord.Message,
+) -> bool:
+    """Handle reply command: ADDROSTER <name> [...].
+
+    - Updates roster_overrides.json (persistent)
+    - If the replied-to message is a known war post in this runtime, re-renders it.
+    - Deletes the user's command message (best effort).
+    """
+    if not message.reference or not message.reference.message_id:
+        return False
+
+    names = _parse_addroster(message.content or "")
+    if not names:
+        return False
+
+    # Fetch referenced message
+    ref_msg: Optional[discord.Message] = None
+    if isinstance(message.reference.resolved, discord.Message):
+        ref_msg = message.reference.resolved
+    else:
+        try:
+            ref_msg = await message.channel.fetch_message(message.reference.message_id)
+        except Exception:
+            ref_msg = None
+    if not ref_msg:
+        return False
+    if not discord_client.user:
+        return False
+    if ref_msg.author.id != discord_client.user.id:
+        return False
+
+    added = await add_to_roster_overrides(names)
+    if not added:
+        # Nothing new added -> treat as handled to avoid noise.
+        try:
+            await ref_msg.add_reaction("ℹ️")
+        except Exception:
+            pass
+        try:
+            await message.delete()
+        except Exception:
+            pass
+        return True
+
+    # If we can, re-render the referenced war post.
+    post = WAR_POSTS.get(ref_msg.id)
+    if post:
+        roster = load_roster()
+        apply_roster_mapping(post.lines_by_rank, roster)
+        new_content = render_post(post)
+        parts = chunk_message(new_content)
+        if len(parts) != 1:
+            new_content = parts[0]
+        try:
+            await ref_msg.edit(content=new_content)
+        except Exception:
+            logger.exception("ADDROSTER: failed to edit war post %s", ref_msg.id)
+
+    # React to confirm
+    try:
+        await ref_msg.add_reaction("➕")
+    except Exception:
+        pass
+
+    # Delete user's command message
+    try:
+        await message.delete()
+        logger.info("ADDROSTER: deleted user msg %s (added=%s)", message.id, added)
+    except Exception:
+        logger.warning("ADDROSTER: could not delete user msg %s (missing permissions?)", message.id)
+        pass
+    return True
 
 
 async def try_apply_manual_corrections(
@@ -809,7 +1013,16 @@ def main():
         )
 
         try:
-            # 1) Manual corrections via reply
+            # 1) Reply commands (ADDROSTER / manual corrections)
+            try:
+                handled = await try_apply_addroster_command(client, message)
+                if handled:
+                    logger.info("ADDROSTER handled -> done")
+                    return
+            except Exception:
+                logger.exception("Błąd podczas ADDROSTER")
+                had_exception = True
+
             try:
                 handled = await try_apply_manual_corrections(client, message)
                 if handled:
