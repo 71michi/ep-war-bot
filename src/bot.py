@@ -52,7 +52,10 @@ ROSTER_PATH = env_str("ROSTER_PATH", "roster.json")
 # When running on Render Free (no shell / no FS access), you can still get the full debug trace.
 # By default we attach per-run debug logs as a text file on Discord.
 SEND_LOG_TO_DISCORD = env_int("SEND_LOG_TO_DISCORD", 1) == 1
-# If enabled, we only send logs when warnings were emitted (missing/unknown/etc.) or on exceptions.
+# If enabled, we only send logs when at least one player remained UNKNOWN (or on exceptions).
+# This is the recommended setting on free hosting tiers.
+SEND_LOG_ONLY_ON_UNKNOWN = env_int("SEND_LOG_ONLY_ON_UNKNOWN", 1) == 1
+# Backwards compatibility (deprecated): older packages used SEND_LOG_ONLY_ON_WARN.
 SEND_LOG_ONLY_ON_WARN = env_int("SEND_LOG_ONLY_ON_WARN", 0) == 1
 # Safety cap so we don't exceed Discord upload limits.
 DISCORD_LOG_MAX_BYTES = env_int("DISCORD_LOG_MAX_BYTES", 1_500_000)
@@ -559,7 +562,9 @@ def render_post(post: WarPost) -> str:
             warn_lines.append("• Nieznane nicki: " + ", ".join(parts))
 
         warn_lines.append("")
-        warn_lines.append("Reply na tę wiadomość w formacie: `23 ropuch13 250` (może być wiele linii).")
+        warn_lines.append(
+            "Reply na tę wiadomość w formacie: `23 ropuch13 250` **albo** `23 Legendarny` (bez punktów = zachowaj istniejące)."
+        )
         warn_lines.append("Po przetworzeniu poprawki bot usunie Twoją wiadomość.")
         msg += "\n" + "\n".join(warn_lines)
 
@@ -589,9 +594,14 @@ async def parse_images_in_thread(images: List[bytes], trace_id: str):
     return await asyncio.to_thread(parse_war_from_images, images, OPENAI_MODEL, trace_id=trace_id)
 
 
-def _parse_manual_corrections(text: str) -> List[Tuple[int, str, int]]:
-    """Parse lines like: 23 ropuch13 250 (rank, nick, points)."""
-    out: List[Tuple[int, str, int]] = []
+def _parse_manual_corrections(text: str) -> List[Tuple[int, str, Optional[int]]]:
+    """Parse manual correction lines.
+
+    Supported formats (one per line, can be many lines):
+      - "23 ropuch13 250"  -> set rank=23, nick=ropuch13, points=250
+      - "23 Legendarny"   -> set rank=23, nick=Legendarny, keep existing points (if present)
+    """
+    out: List[Tuple[int, str, Optional[int]]] = []
     for raw_line in (text or "").splitlines():
         line = raw_line.strip()
         if not line:
@@ -600,7 +610,7 @@ def _parse_manual_corrections(text: str) -> List[Tuple[int, str, int]]:
         # Normalize separators
         line = line.replace("—", " ").replace("-", " ").replace(":", " ")
         toks = [t for t in line.split() if t]
-        if len(toks) < 3:
+        if len(toks) < 2:
             continue
 
         # Rank
@@ -610,21 +620,27 @@ def _parse_manual_corrections(text: str) -> List[Tuple[int, str, int]]:
         except ValueError:
             continue
 
-        # Points
+        # Points (optional)
+        points: Optional[int] = None
         t_last = toks[-1].strip("[](){}")
-        try:
-            points = int(t_last)
-        except ValueError:
-            continue
+        if len(toks) >= 3:
+            try:
+                points = int(t_last)
+            except ValueError:
+                points = None
 
-        nick = " ".join(toks[1:-1]).strip()
+        if points is None:
+            nick = " ".join(toks[1:]).strip()
+        else:
+            nick = " ".join(toks[1:-1]).strip()
         if not nick:
             continue
 
         if rank <= 0 or rank > 200:
             continue
-        if points < 0 or points > 9999:
-            continue
+        if points is not None:
+            if points < 0 or points > 9999:
+                continue
 
         out.append((rank, nick, points))
     return out
@@ -670,9 +686,29 @@ async def try_apply_manual_corrections(
 
     roster = load_roster()
 
-    for rank, nick, points in corrections:
+    for rank, nick, points_opt in corrections:
+        # If points not provided, keep the existing points for that rank.
+        if points_opt is None:
+            existing = post.lines_by_rank.get(rank)
+            if not existing:
+                logger.warning(
+                    "Manual correction skipped: rank %d has no existing line and no points were provided",
+                    rank,
+                )
+                continue
+            points = int(existing.points)
+        else:
+            points = int(points_opt)
+
         roster_name = resolve_to_roster(nick, None, roster)
-        logger.debug("Manual correction line: rank=%d raw_nick=%r resolved=%r points=%d", rank, nick, roster_name, points)
+        logger.debug(
+            "Manual correction line: rank=%d raw_nick=%r resolved=%r points=%d (provided=%s)",
+            rank,
+            nick,
+            roster_name,
+            points,
+            points_opt is not None,
+        )
         if roster_name:
             post.lines_by_rank[rank] = WarLine(
                 rank=rank,
@@ -754,6 +790,7 @@ def main():
         capture_stream: Optional[io.StringIO] = None
         processed_images = False
         had_warning = False
+        had_unknown = False
         had_exception = False
         bot_post_msg: Optional[discord.Message] = None
 
@@ -819,6 +856,7 @@ def main():
                 return
 
             post = build_post(summary, players, expected_max_rank)
+            had_unknown = bool(post.unknown_ranks())
             had_warning = bool(post.missing_ranks() or post.unknown_ranks())
             out = render_post(post)
 
@@ -848,7 +886,19 @@ def main():
             # Optionally upload the per-run debug log to Discord.
             try:
                 if SEND_LOG_TO_DISCORD and processed_images and capture_stream is not None:
-                    if (not SEND_LOG_ONLY_ON_WARN) or had_warning or had_exception:
+                    # Decide whether to upload the per-run log.
+                    # Priority:
+                    #   1) New behaviour: only when UNKNOWN exists (or exception)
+                    #   2) Deprecated: only when warnings exist (or exception)
+                    #   3) Otherwise: always
+                    if SEND_LOG_ONLY_ON_UNKNOWN:
+                        should_send = had_unknown or had_exception
+                    elif SEND_LOG_ONLY_ON_WARN:
+                        should_send = had_warning or had_exception
+                    else:
+                        should_send = True
+
+                    if should_send:
                         raw_text = capture_stream.getvalue()
                         raw_text = _redact_secrets(raw_text)
                         data = raw_text.encode("utf-8", errors="replace")
