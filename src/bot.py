@@ -14,7 +14,7 @@ import discord
 from .config import env_str, env_int
 from .logging_setup import setup_logging, set_trace_id, reset_trace_id, get_trace_id
 from .openai_parser import parse_war_from_images, WarSummary, PlayerScore
-from .nicknames import normalize_with_aliases, normalize_display, roster_match, canonical_key
+from .nicknames import normalize_with_aliases, normalize_display, roster_match, canonical_key, is_clean_display
 from rapidfuzz import fuzz, process
 
 setup_logging()
@@ -290,6 +290,9 @@ class WarLine:
     # When UNKNOWN, we keep the raw string for warnings/manual fixes.
     unknown_raw: Optional[str] = None
 
+    # When nick is clean but not in roster, we keep it and warn 'poza rosterem'.
+    out_of_roster_raw: Optional[str] = None
+
 @dataclass
 class WarPost:
     summary: WarSummary
@@ -301,6 +304,10 @@ class WarPost:
 
     def unknown_ranks(self) -> List[int]:
         return [r for r, ln in self.lines_by_rank.items() if ln.name_display == "UNKNOWN"]
+
+
+    def out_of_roster_ranks(self) -> List[int]:
+        return [r for r, ln in self.lines_by_rank.items() if getattr(ln, 'out_of_roster_raw', None)]
 
 
 # message_id -> WarPost
@@ -527,11 +534,21 @@ def apply_roster_mapping(lines_by_rank: Dict[int, WarLine], roster: List[str]) -
         if r in assigned:
             ln.name_display = assigned[r]
             ln.unknown_raw = None
+            ln.out_of_roster_raw = None
             logger.debug("Final roster mapping: rank %s raw=%r -> %s", r, ln.name_raw, ln.name_display)
         else:
-            ln.name_display = "UNKNOWN"
-            ln.unknown_raw = ln.name_raw
-            logger.debug("Final roster mapping: rank %s raw=%r -> UNKNOWN", r, ln.name_raw)
+            cleaned = normalize_display(ln.name_raw)
+            if is_clean_display(ln.name_raw):
+                # Show clean nick even if it's not in roster (but warn).
+                ln.name_display = cleaned
+                ln.unknown_raw = None
+                ln.out_of_roster_raw = cleaned
+                logger.debug("Final roster mapping: rank %s raw=%r -> OUT_OF_ROSTER(%s)", r, ln.name_raw, cleaned)
+            else:
+                ln.name_display = "UNKNOWN"
+                ln.unknown_raw = cleaned or ln.name_raw
+                ln.out_of_roster_raw = None
+                logger.debug("Final roster mapping: rank %s raw=%r -> UNKNOWN", r, ln.name_raw)
 
 
 def build_post(summary: WarSummary, players: List[PlayerScore], expected_max_rank: Optional[int]) -> WarPost:
@@ -596,8 +613,9 @@ def build_post(summary: WarSummary, players: List[PlayerScore], expected_max_ran
 
     missing = post.missing_ranks()
     unknown = post.unknown_ranks()
-    if missing or unknown:
-        logger.warning("Post validation: missing=%s unknown=%s", missing, unknown)
+    out_of_roster = post.out_of_roster_ranks()
+    if missing or unknown or out_of_roster:
+        logger.warning("Post validation: missing=%s unknown=%s out_of_roster=%s", missing, unknown, out_of_roster)
     else:
         logger.info("Post validation: OK")
 
@@ -633,8 +651,9 @@ def render_post(post: WarPost) -> str:
 
     missing = post.missing_ranks()
     unknown = post.unknown_ranks()
+    out_of_roster = post.out_of_roster_ranks()
 
-    if missing or unknown:
+    if missing or unknown or out_of_roster:
         warn_lines: List[str] = ["", "⚠️ **Wymagane poprawki**"]
         if missing:
             warn_lines.append("• Brakujące pozycje: " + ", ".join(str(x) for x in missing))
@@ -646,6 +665,13 @@ def render_post(post: WarPost) -> str:
                 raw = raw.replace("`", "'")
                 parts.append(f"{r}(\"{raw}\")")
             warn_lines.append("• Nieznane nicki: " + ", ".join(parts))
+        if out_of_roster:
+            parts2 = []
+            for r in sorted(out_of_roster):
+                raw = post.lines_by_rank[r].out_of_roster_raw or post.lines_by_rank[r].name_display or ""
+                raw = raw.replace("`", "'")
+                parts2.append(f"{r}(\"{raw}\")")
+            warn_lines.append("• Poza rosterem: " + ", ".join(parts2))
 
         warn_lines.append("")
         warn_lines.append(
@@ -922,13 +948,25 @@ async def try_apply_manual_corrections(
                 unknown_raw=None,
             )
         else:
-            post.lines_by_rank[rank] = WarLine(
-                rank=rank,
-                points=points,
-                name_raw=nick,
-                name_display="UNKNOWN",
-                unknown_raw=nick,
-            )
+            if is_clean_display(nick):
+                cleaned = normalize_display(nick)
+                post.lines_by_rank[rank] = WarLine(
+                    rank=rank,
+                    points=points,
+                    name_raw=nick,
+                    name_display=cleaned,
+                    unknown_raw=None,
+                    out_of_roster_raw=cleaned,
+                )
+            else:
+                post.lines_by_rank[rank] = WarLine(
+                    rank=rank,
+                    points=points,
+                    name_raw=nick,
+                    name_display="UNKNOWN",
+                    unknown_raw=normalize_display(nick) or nick,
+                    out_of_roster_raw=None,
+                )
 
         if rank > post.expected_max_rank:
             post.expected_max_rank = rank
@@ -995,6 +1033,8 @@ def main():
         processed_images = False
         had_warning = False
         had_unknown = False
+        had_out_of_roster = False
+        had_missing = False
         had_exception = False
         bot_post_msg: Optional[discord.Message] = None
 
@@ -1070,7 +1110,9 @@ def main():
 
             post = build_post(summary, players, expected_max_rank)
             had_unknown = bool(post.unknown_ranks())
-            had_warning = bool(post.missing_ranks() or post.unknown_ranks())
+            had_out_of_roster = bool(post.out_of_roster_ranks())
+            had_missing = bool(post.missing_ranks())
+            had_warning = bool(had_missing or had_unknown or had_out_of_roster)
             out = render_post(post)
 
             parts = chunk_message(out)
@@ -1105,7 +1147,8 @@ def main():
                     #   2) Deprecated: only when warnings exist (or exception)
                     #   3) Otherwise: always
                     if SEND_LOG_ONLY_ON_UNKNOWN:
-                        should_send = had_unknown or had_exception
+                        # 'Unrecognized' includes UNKNOWN, poza rosterem, or missing ranks.
+                        should_send = had_unknown or had_out_of_roster or had_missing or had_exception
                     elif SEND_LOG_ONLY_ON_WARN:
                         should_send = had_warning or had_exception
                     else:

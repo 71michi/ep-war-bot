@@ -173,6 +173,24 @@ def normalize_display(raw: str) -> str:
     s = s.replace("≡", "三")
     return s
 
+
+def is_clean_display(raw: str) -> bool:
+    """Heuristic: is the nick 'clean' enough to show even if not in roster?
+
+    Clean means it contains only letters/digits/spaces and a small set of
+    separators (underscore, hyphen, apostrophes). We strip the [g3w] prefix
+    and normalize whitespace first.
+    """
+    s = normalize_display(raw)
+    if not s:
+        return False
+    allowed = set(" _-.'’")
+    for ch in s:
+        if ch.isalnum() or ch.isspace() or ch in allowed:
+            continue
+        return False
+    return True
+
 def roster_autocorrect(name: str, roster: list[str], min_score: int = 88) -> str:
     'Match name to closest roster entry (by canonical key) if similarity is high.'
     if not roster:
