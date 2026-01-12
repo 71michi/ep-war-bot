@@ -9,8 +9,9 @@ from openai import OpenAI
 from pydantic import BaseModel, Field
 from PIL import Image
 from PIL import ImageEnhance, ImageFilter
+from rapidfuzz import fuzz as rf_fuzz
 
-from .config import env_str, env_int
+from .config import env_str, env_int, env_bool, env_float
 from .nicknames import canonical_key
 from .logging_setup import setup_logging, set_trace_id, reset_trace_id
 
@@ -284,6 +285,10 @@ ROSTER:
 
     out = resp.output_parsed
     players = out.players if out and out.players else []
+    # sanitize: some models return literal strings like "null" for optional fields
+    for p in players:
+        if isinstance(p.name_norm, str) and p.name_norm.strip().lower() in {"null", "none", "nil", "n/a"}:
+            p.name_norm = None
     logger.debug("Chat slice parsed: %d players", len(players))
     return players
 
@@ -292,6 +297,18 @@ def _merge_players(lists: List[List[PlayerScore]]) -> List[PlayerScore]:
     """Scala wyniki z kilku slice'ów po rank i wybiera "lepszy" rekord."""
     by_rank: Dict[int, PlayerScore] = {}
 
+    def _norm_name_norm(nn: Optional[str]) -> Optional[str]:
+        if nn is None:
+            return None
+        if not isinstance(nn, str):
+            return None
+        t = nn.strip()
+        if not t:
+            return None
+        if t.lower() in {"null", "none", "nil", "n/a"}:
+            return None
+        return t
+
     def score(p: PlayerScore) -> int:
         # Heurystyka: preferuj dłuższe name_raw (mniej obcięte) i niezerowe points
         s = 0
@@ -299,8 +316,9 @@ def _merge_players(lists: List[List[PlayerScore]]) -> List[PlayerScore]:
             s += min(len(p.name_raw), 40)
         if p.points and p.points > 0:
             s += 20
-        if p.name_norm:
-            s += 10
+        # Jeśli model podał name_norm z roster, to zwykle oznacza "pewny" odczyt.
+        if _norm_name_norm(p.name_norm):
+            s += 120
         return s
 
     for lst in lists:
@@ -311,6 +329,8 @@ def _merge_players(lists: List[List[PlayerScore]]) -> List[PlayerScore]:
                 continue
             cur = by_rank.get(p.rank)
             if cur is None or score(p) > score(cur):
+                # normalizuj name_norm (czasem modele zwracają literal "null")
+                p.name_norm = _norm_name_norm(p.name_norm)
                 by_rank[p.rank] = p
 
     merged = list(by_rank.values())
@@ -352,6 +372,170 @@ def _chat_needs_repair(players: Optional[List[PlayerScore]], expected_max_rank: 
         return True
 
     return False
+
+# --- Cheap repair for suspicious names (cost optimization) ---
+
+def _chat_repair_details(players: Optional[List[PlayerScore]], expected_max_rank: Optional[int] = None) -> dict:
+    """Return details used to decide repair strategy."""
+    details = {
+        "empty": False,
+        "duplicate_ranks": False,
+        "mx": None,
+        "missing_ranks": [],
+        "extra_ranks": [],
+        "suspicious_ranks": [],
+        "suspicious_count": 0,
+    }
+    if not players:
+        details["empty"] = True
+        return details
+
+    ranks = [p.rank for p in players if isinstance(p.rank, int) and p.rank > 0]
+    if not ranks:
+        details["empty"] = True
+        return details
+
+    if len(set(ranks)) != len(ranks):
+        details["duplicate_ranks"] = True
+
+    mx = int(expected_max_rank) if expected_max_rank and expected_max_rank > 0 else max(ranks)
+    details["mx"] = mx
+
+    full = set(range(1, mx + 1))
+    rset = set(ranks)
+    if rset != full:
+        details["missing_ranks"] = sorted(full - rset)
+        details["extra_ranks"] = sorted(rset - full)
+
+    suspicious = []
+    for p in players:
+        if _is_suspicious_name(p.name_raw):
+            suspicious.append(int(p.rank))
+    details["suspicious_ranks"] = sorted(set(suspicious))
+    details["suspicious_count"] = len(details["suspicious_ranks"])
+    return details
+
+
+def _cluster_ranks(ranks: List[int], gap: int = 2) -> List[Tuple[int, int]]:
+    if not ranks:
+        return []
+    r = sorted(set(int(x) for x in ranks if isinstance(x, int)))
+    clusters: List[Tuple[int, int]] = []
+    start = prev = r[0]
+    for x in r[1:]:
+        if x - prev <= gap:
+            prev = x
+        else:
+            clusters.append((start, prev))
+            start = prev = x
+    clusters.append((start, prev))
+    return clusters
+
+
+def _roster_mismatch_ranks(
+    players: Optional[List[PlayerScore]],
+    roster: List[str],
+    min_similarity: float = 80.0,
+) -> List[int]:
+    """Find ranks whose name_raw looks unlike anything in roster (and model didn't provide name_norm).
+
+    This catches cases where the model read a completely different word (e.g. "Mądrasyn") instead of
+    a stylized roster nick. We keep it conservative to avoid extra calls.
+    """
+    if not players or not roster:
+        return []
+    roster_canons = [canonical_key(r) for r in roster]
+    out: List[int] = []
+
+    for p in players:
+        if not isinstance(p.rank, int) or p.rank <= 0:
+            continue
+
+        # If the model already confidently picked a roster nick, don't touch it.
+        if p.name_norm and isinstance(p.name_norm, str) and p.name_norm.strip() and p.name_norm.strip().lower() not in {"null", "none"}:
+            continue
+
+        canon = canonical_key(p.name_raw or "")
+        if len(canon) < 3:
+            out.append(int(p.rank))
+            continue
+
+        best = 0.0
+        for rc in roster_canons:
+            if not rc:
+                continue
+            best = max(best, float(rf_fuzz.ratio(canon, rc)))
+
+        if best < float(min_similarity):
+            out.append(int(p.rank))
+
+    return sorted(set(out))
+
+
+def _repair_suspicious_rows(image_bytes: bytes, model: str, expected_max_rank: int, suspicious_ranks: List[int]) -> Optional[List[PlayerScore]]:
+    """Attempt a cheaper repair by re-OCR'ing only regions that contain suspicious ranks.
+
+    This is much cheaper than full slicing. If it doesn't help, we fall back to robust mode.
+    """
+    if not suspicious_ranks or not expected_max_rank or expected_max_rank <= 0:
+        return None
+
+    max_ranks = env_int("CHAT_ROW_REPAIR_MAX_RANKS", 5)
+    if len(set(suspicious_ranks)) > max_ranks:
+        logger.debug("Row-repair skipped: too many suspicious ranks (%d > %d)", len(set(suspicious_ranks)), max_ranks)
+        return None
+
+    max_clusters = env_int("CHAT_ROW_REPAIR_MAX_CLUSTERS", 3)
+    header_ratio = env_float("CHAT_ROW_REPAIR_HEADER_RATIO", 0.12)
+    pad_lines = env_float("CHAT_ROW_REPAIR_PAD_LINES", 1.35)
+
+    roster_path = env_str("ROSTER_PATH", "roster.json")
+    roster = _load_roster(roster_path)
+
+    pre = _preprocess_chat_image(image_bytes)
+    w, h = pre.size
+    header = int(h * header_ratio)
+    header = max(0, min(header, h - 1))
+    list_h = max(1, h - header)
+    line_h = list_h / float(max(1, expected_max_rank))
+
+    clusters = _cluster_ranks(suspicious_ranks, gap=2)[:max_clusters]
+    logger.info("Cheap row-repair: suspicious_ranks=%s clusters=%s (max_rank=%d)", sorted(set(suspicious_ranks)), clusters, expected_max_rank)
+
+    all_lists: List[List[PlayerScore]] = []
+    for (a, b) in clusters:
+        # Expand cluster by a few lines so OCR has context
+        a2 = max(1, int(a - pad_lines))
+        b2 = min(expected_max_rank, int(b + pad_lines))
+        y1 = int(header + (a2 - 1) * line_h - line_h * 0.2)
+        y2 = int(header + (b2) * line_h + line_h * 0.2)
+        y1 = max(0, y1)
+        y2 = min(h, y2)
+        if y2 - y1 < int(line_h * 1.2):
+            continue
+
+        crop = pre.crop((0, y1, w, y2))
+        buf = io.BytesIO()
+        crop.save(buf, format="PNG")
+        crop_bytes = buf.getvalue()
+        logger.debug("Row-repair crop for ranks %d..%d -> roi=(0,%d,%d) bytes=%d", a2, b2, y1, y2, len(crop_bytes))
+        try:
+            lst = _parse_chat_slice(crop_bytes, model=model, roster=roster)
+            # keep only ranks in the expanded window
+            keep = [p for p in lst if isinstance(p.rank, int) and a2 <= p.rank <= b2]
+            logger.debug("Row-repair parsed %d players (kept %d) for window %d..%d", len(lst), len(keep), a2, b2)
+            all_lists.append(keep)
+        except Exception as e:
+            logger.debug("Row-repair crop parse failed for window %d..%d: %s", a2, b2, e)
+            continue
+
+    if not all_lists:
+        return None
+
+    merged = _merge_players(all_lists)
+    logger.info("Cheap row-repair produced %d updated rows", len(merged))
+    return merged
+
 
 
 def _parse_chat_results_robust(image_bytes: bytes, model: str, parts: int) -> List[PlayerScore]:
@@ -501,6 +685,11 @@ Zasady:
 
     out = resp.output_parsed
     if out:
+        # sanitize optional fields (sometimes returned as literal strings)
+        if out.kind == "chat_results" and out.chat_results and out.chat_results.players:
+            for p in out.chat_results.players:
+                if isinstance(p.name_norm, str) and p.name_norm.strip().lower() in {"null", "none", "nil", "n/a"}:
+                    p.name_norm = None
         logger.debug("parse_single_image result: kind=%s conf=%.2f notes=%s", out.kind, out.confidence, (out.notes or ""))
         if out.kind == "chat_results" and out.chat_results:
             logger.debug("chat_results players=%d expected_max_rank=%s", len(out.chat_results.players or []), out.chat_results.expected_max_rank)
@@ -566,33 +755,61 @@ def parse_war_from_images(
 
     logger.debug("After expected_max_rank inference: %s", expected_max_rank)
 
-    # Jeśli chat wyszedł podejrzany (braki/duplikaty/śmieciowe nicki), spróbuj robust OCR.
+    # Jeśli chat wyszedł podejrzany (braki/duplikaty/śmieciowe nicki), spróbuj naprawy.
     if chat_image_bytes and _chat_needs_repair(players, expected_max_rank):
-        primary_parts = env_int("OPENAI_CHAT_SLICES", 4)
-        fallback_parts = env_int("OPENAI_CHAT_SLICES_FALLBACK", 6)
+        details = _chat_repair_details(players, expected_max_rank)
 
-        logger.info("Chat flagged as suspicious -> robust mode (parts=%d, fallback=%d)", primary_parts, fallback_parts)
+        # Optymalizacja kosztów: jeżeli ranki są kompletne, a problem to głównie "podejrzane" nicki,
+        # spróbuj najpierw taniej naprawy (row-crops) zamiast pełnego slicing-u.
+        if env_bool("CHAT_ROW_REPAIR", True):
+            only_suspicious = (
+                (not details.get("empty"))
+                and (not details.get("duplicate_ranks"))
+                and (not details.get("missing_ranks"))
+                and (not details.get("extra_ranks"))
+                and bool(details.get("suspicious_ranks"))
+                and bool(details.get("mx"))
+            )
+            if only_suspicious and expected_max_rank:
+                upd = _repair_suspicious_rows(
+                    chat_image_bytes,
+                    model=model,
+                    expected_max_rank=int(expected_max_rank),
+                    suspicious_ranks=details["suspicious_ranks"],
+                )
+                if upd:
+                    players = _merge_players([players or [], upd])
+                    if not _chat_needs_repair(players, expected_max_rank):
+                        logger.info("Cheap row-repair fixed chat -> skipping robust slicing")
 
-        cand = _parse_chat_results_robust(chat_image_bytes, model=model, parts=primary_parts)
-        logger.debug("Robust(primary) produced %d players", len(cand or []))
-        if cand and not _chat_needs_repair(cand, expected_max_rank):
-            players = cand
-            logger.info("Robust(primary) accepted")
-        elif cand:
-            # Merge with the original as a last resort (choose better lines per rank).
-            players = _merge_players([players or [], cand])
-            logger.info("Robust(primary) merged with initial -> %d players", len(players or []))
+        # Jeśli nadal podejrzane (braki/duplikaty/śmieciowe nicki), przechodzimy do robust OCR (slicing).
+        if _chat_needs_repair(players, expected_max_rank):
+            primary_parts = env_int("OPENAI_CHAT_SLICES", 4)
+            fallback_parts = env_int("OPENAI_CHAT_SLICES_FALLBACK", 6)
 
-        if _chat_needs_repair(players, expected_max_rank) and fallback_parts != primary_parts:
-            logger.info("Still suspicious -> robust fallback (parts=%d)", fallback_parts)
-            cand2 = _parse_chat_results_robust(chat_image_bytes, model=model, parts=fallback_parts)
-            logger.debug("Robust(fallback) produced %d players", len(cand2 or []))
-            if cand2 and not _chat_needs_repair(cand2, expected_max_rank):
-                players = cand2
-                logger.info("Robust(fallback) accepted")
-            elif cand2:
-                players = _merge_players([players or [], cand2])
-                logger.info("Robust(fallback) merged -> %d players", len(players or []))
+            logger.info("Chat flagged as suspicious -> robust mode (parts=%d, fallback=%d)", primary_parts, fallback_parts)
+
+            cand = _parse_chat_results_robust(chat_image_bytes, model=model, parts=primary_parts)
+            logger.debug("Robust(primary) produced %d players", len(cand or []))
+            if cand and not _chat_needs_repair(cand, expected_max_rank):
+                players = cand
+                logger.info("Robust(primary) accepted")
+            elif cand:
+                # Merge with the original as a last resort (choose better lines per rank).
+                players = _merge_players([players or [], cand])
+                logger.info("Robust(primary) merged with initial -> %d players", len(players or []))
+
+            if _chat_needs_repair(players, expected_max_rank) and fallback_parts != primary_parts:
+                logger.info("Still suspicious -> robust fallback (parts=%d)", fallback_parts)
+                cand2 = _parse_chat_results_robust(chat_image_bytes, model=model, parts=fallback_parts)
+                logger.debug("Robust(fallback) produced %d players", len(cand2 or []))
+                if cand2 and not _chat_needs_repair(cand2, expected_max_rank):
+                    players = cand2
+                    logger.info("Robust(fallback) accepted")
+                elif cand2:
+                    players = _merge_players([players or [], cand2])
+                    logger.info("Robust(fallback) merged -> %d players", len(players or []))
+
 
     # Jeśli w ogóle nie wykryliśmy chatu (zła klasyfikacja), spróbuj robust na wszystkich obrazkach
     # i wybierz ten z największą liczbą pozycji.
@@ -612,6 +829,34 @@ def parse_war_from_images(
             ranks = [p.rank for p in players if isinstance(p.rank, int) and p.rank > 0]
             expected_max_rank = max(ranks) if ranks else expected_max_rank
             logger.info("Robust-all-images selected %d players (expected_max_rank=%s)", len(players), expected_max_rank)
+
+    # Post-pass: if the structure looks OK but some rows still look unlike the roster,
+    # try a cheap row-level re-OCR for only those ranks.
+    if chat_image_bytes and players and expected_max_rank and env_bool("CHAT_ROW_REPAIR", True):
+        details2 = _chat_repair_details(players, expected_max_rank)
+        structure_ok = (
+            (not details2.get("empty"))
+            and (not details2.get("duplicate_ranks"))
+            and (not details2.get("missing_ranks"))
+            and (not details2.get("extra_ranks"))
+            and bool(details2.get("mx"))
+        )
+        if structure_ok:
+            roster_path = env_str("ROSTER_PATH", "roster.json")
+            roster = _load_roster(roster_path)
+            min_sim = env_float("CHAT_ROW_REPAIR_ROSTER_MIN_SIM", 80.0)
+            mismatch = _roster_mismatch_ranks(players, roster, min_similarity=min_sim)
+            if mismatch:
+                logger.info("Roster-mismatch ranks detected -> row-repair: %s", mismatch)
+                upd2 = _repair_suspicious_rows(
+                    chat_image_bytes,
+                    model=model,
+                    expected_max_rank=int(expected_max_rank),
+                    suspicious_ranks=mismatch,
+                )
+                if upd2:
+                    players = _merge_players([players or [], upd2])
+                    logger.info("Roster-mismatch row-repair merged -> %d players", len(players or []))
 
     # Fallback na war_mode: jeśli model pominął tryb na pełnym screenie, doczytaj z cropa
     if summary and (not summary.war_mode or not summary.war_mode.strip()) and summary_image_bytes:

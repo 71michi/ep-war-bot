@@ -15,6 +15,8 @@ _CHAR_MAP = {
     "@": "a", "$": "s",
     "0": "o", "1": "i", "!": "i", "¡": "i", "|": "i",
     "£": "l", "ð": "d", "ɭ": "l",
+    # IPA / special latin letters that OCR sometimes emits
+    "ɾ": "r", "ɼ": "r", "ɽ": "r", "ɹ": "r",
     "√": "w",
 
     # extra common OCR / symbols
