@@ -16,6 +16,11 @@ _CHAR_MAP = {
     "0": "o", "1": "i", "!": "i", "¡": "i", "|": "i",
     "£": "l", "ð": "d", "ɭ": "l",
     # IPA / special latin letters that OCR sometimes emits
+    # IMPORTANT: some of these are *not* matched by our final [a-z0-9]
+    # regex later, so if we don't map them here they get dropped entirely
+    # (e.g. "eɡeɾdarny" -> "eerdarny") and we lose the ability to match
+    # against roster names.
+    "ɡ": "g",  # U+0261 latin small letter script g
     "ɾ": "r", "ɼ": "r", "ɽ": "r", "ɹ": "r",
     "√": "w",
 
