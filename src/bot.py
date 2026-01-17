@@ -198,6 +198,12 @@ WAR_STORE_PATH = env_str("WAR_STORE_PATH", "wars_store.json")
 DISCORD_STORAGE_CHANNEL_ID = env_int("DISCORD_STORAGE_CHANNEL_ID", 0)
 DISCORD_PERSIST_MAX_BYTES = env_int("DISCORD_PERSIST_MAX_BYTES", 7000000)
 
+# LISTWAR: inform user that processing has started (helps UX on slow hosting / OpenAI latency)
+LISTWAR_PROGRESS_ENABLED = env_bool("LISTWAR_PROGRESS_ENABLED", True)
+
+# HELP message auto-delete (seconds)
+HELP_AUTO_DELETE_SEC = env_int("HELP_AUTO_DELETE_SEC", 30)
+
 # In free hosting tiers with ephemeral filesystem (e.g. Render Free), you can
 # keep progress by persisting JSON snapshots into a private Discord channel.
 _STORAGE_CHANNEL: Optional[discord.TextChannel] = None
@@ -726,6 +732,19 @@ class WarPost:
     def out_of_roster_ranks(self) -> List[int]:
         return [r for r, ln in self.lines_by_rank.items() if getattr(ln, 'out_of_roster_raw', None)]
 
+    def total_points_sum(self) -> int:
+        """Sum of points for all parsed players in the list.
+
+        Used to validate against the alliance total shown on the war summary screen.
+        """
+        s = 0
+        for ln in self.lines_by_rank.values():
+            try:
+                s += int(getattr(ln, 'points', 0) or 0)
+            except Exception:
+                continue
+        return int(s)
+
 
 # message_id -> WarPost
 WAR_POSTS: Dict[int, WarPost] = {}
@@ -1180,6 +1199,12 @@ def render_post(post: WarPost) -> str:
     for r in sorted(post.lines_by_rank.keys()):
         ln = post.lines_by_rank[r]
         name_disp = ln.name_display
+        # Make UNKNOWN lines self-explanatory in the main list as well.
+        if name_disp == "UNKNOWN":
+            raw = (ln.unknown_raw or ln.name_raw or "").strip()
+            raw = raw.replace("`", "'")
+            if raw:
+                name_disp = f'{name_disp} _(nierozpoznany: "{raw}")_'
         if getattr(ln, 'out_of_roster_raw', None):
             name_disp = f"{name_disp} _(poza rosterem)_"
         lines_out.append(f"[{ln.rank:02d}] {name_disp} — {ln.points}")
@@ -1189,8 +1214,14 @@ def render_post(post: WarPost) -> str:
     missing = post.missing_ranks()
     unknown = post.unknown_ranks()
     out_of_roster = post.out_of_roster_ranks()
+    points_sum = post.total_points_sum()
+    try:
+        alliance_total = int(s.our_score)
+    except Exception:
+        alliance_total = 0
+    sum_mismatch = bool(alliance_total and points_sum != alliance_total)
 
-    if missing or unknown or out_of_roster:
+    if missing or unknown or out_of_roster or sum_mismatch:
         warn_lines: List[str] = ["", "⚠️ **Wymagane poprawki**"]
         if missing:
             warn_lines.append("• Brakujące pozycje: " + ", ".join(str(x) for x in missing))
@@ -1201,7 +1232,7 @@ def render_post(post: WarPost) -> str:
                 raw = post.lines_by_rank[r].unknown_raw or ""
                 raw = raw.replace("`", "'")
                 parts.append(f"{r}(\"{raw}\")")
-            warn_lines.append("• Nieznane nicki: " + ", ".join(parts))
+            warn_lines.append("• UNKNOWN (nieznane nicki): " + ", ".join(parts))
         if out_of_roster:
             parts2 = []
             for r in sorted(out_of_roster):
@@ -1209,6 +1240,10 @@ def render_post(post: WarPost) -> str:
                 raw = raw.replace("`", "'")
                 parts2.append(f"{r}(\"{raw}\")")
             warn_lines.append("• Poza rosterem (gracz nie widnieje w rosterze): " + ", ".join(parts2))
+
+        if sum_mismatch:
+            diff_pts = points_sum - alliance_total
+            warn_lines.append("• Suma punktów graczy = %d, suma sojuszu (z podsumowania) = %d (różnica: %+d)" % (points_sum, alliance_total, diff_pts))
 
         warn_lines.append("")
         warn_lines.append(
@@ -1248,6 +1283,12 @@ def _post_to_store_record(
     """
     s = post.summary
     diff = int(s.our_score) - int(s.opponent_score)
+    points_sum = post.total_points_sum()
+    try:
+        alliance_total = int(s.our_score)
+    except Exception:
+        alliance_total = 0
+    points_sum_matches_alliance = bool(alliance_total and points_sum == alliance_total)
     now_ts = int(time.time())
 
     ref_id = str(ref_msg.id) if ref_msg is not None else (str(post.ref_message_id) if post.ref_message_id else None)
@@ -1338,6 +1379,8 @@ def _post_to_store_record(
         # Backwards compatible aliases (older UI keys)
         "enemy_score": int(s.opponent_score),
         "diff": int(diff),
+        "players_points_sum": int(points_sum),
+        "players_points_sum_matches_alliance": bool(points_sum_matches_alliance),
         "mode": mode_norm,
         "players": players,
         "unknown": unknown,
@@ -1374,6 +1417,81 @@ def chunk_message(msg: str, limit: int = 1900) -> List[str]:
         msg = msg[cut:].lstrip("\n")
     chunks.append(msg)
     return chunks
+
+
+async def _delete_message_later(msg: discord.Message, delay_sec: int) -> None:
+    """Delete a Discord message after delay_sec seconds (best-effort)."""
+    try:
+        await asyncio.sleep(max(0, int(delay_sec)))
+        await msg.delete()
+    except (discord.NotFound, discord.Forbidden):
+        return
+    except Exception:
+        # Never crash the bot because of a cleanup task.
+        logger.debug("Failed to auto-delete message", exc_info=True)
+
+
+def _set_current_status_block(text: str, status_line: str) -> str:
+    """Ensure LISTWAR message ends with a single '**Aktualny status:** ...' line."""
+    base = (text or "").rstrip()
+    # Remove any previous status block (best-effort) and re-append as the final line.
+    base = re.sub(r"\n\n\*\*Aktualny status:\*\*.*\Z", "", base, flags=re.DOTALL)
+    base = base.rstrip()
+    return base + "\n\n**Aktualny status:** " + status_line
+
+
+async def _try_update_listwar_status_message(
+    discord_client: discord.Client,
+    war_id: str,
+    status_line: str,
+    ref_msg: Optional[discord.Message] = None,
+) -> bool:
+    """Update the LISTWAR-generated bot message with current status (no spam in channel).
+
+    Returns True if we managed to update a message, False otherwise.
+    """
+    # If we already have the referenced bot message, update it directly.
+    if ref_msg is not None:
+        try:
+            new_content = _set_current_status_block(ref_msg.content or "", status_line)
+            if new_content != (ref_msg.content or ""):
+                await ref_msg.edit(content=new_content)
+            return True
+        except Exception:
+            logger.debug("Failed to edit LISTWAR message for status update", exc_info=True)
+
+    # Otherwise, try to locate the original LISTWAR message from store metadata.
+    try:
+        async with WAR_STORE_LOCK:
+            rec = await asyncio.to_thread(WAR_STORE.get_war, war_id)
+        if not isinstance(rec, dict):
+            return False
+        msg_id = rec.get("ref_message_id") or rec.get("bot_message_id")
+        ch_id = rec.get("channel_id")
+        if not msg_id or not ch_id:
+            return False
+
+        channel = discord_client.get_channel(int(ch_id))
+        if channel is None:
+            try:
+                channel = await discord_client.fetch_channel(int(ch_id))
+            except Exception:
+                channel = None
+        if channel is None:
+            return False
+
+        try:
+            m = await channel.fetch_message(int(msg_id))
+        except Exception:
+            return False
+
+        new_content = _set_current_status_block(m.content or "", status_line)
+        if new_content != (m.content or ""):
+            await m.edit(content=new_content)
+        return True
+    except Exception:
+        logger.debug("Failed to locate/update LISTWAR message for war_id=%s", war_id, exc_info=True)
+        return False
 
 
 def is_image(att: discord.Attachment) -> bool:
@@ -1821,8 +1939,10 @@ async def try_apply_help_channel_command(
     if not re.match(r"^HELP\b", text, flags=re.IGNORECASE):
         return False
 
+    auto_del = max(5, int(HELP_AUTO_DELETE_SEC))
     help_text = (
         "🆘 **Dostępne komendy**\n"
+        f"\n⏳ _Ta wiadomość zostanie usunięta za {auto_del} sekund._\n"
         "\n"
         "**Wojny**\n"
         "• `LISTWAR` — *(reply)* na wiadomość z **2 screenami** z wojny. Bot wyśle listę wyników (DRAFT).\n"
@@ -1842,11 +1962,20 @@ async def try_apply_help_channel_command(
         "(Bot może usuwać Twoje wiadomości-komendy, żeby kanał był czysty.)"
     )
 
+    sent_msgs: List[discord.Message] = []
     try:
         for part in chunk_message(help_text):
-            await message.channel.send(part)
+            sent = await message.channel.send(part)
+            sent_msgs.append(sent)
     except Exception:
         logger.exception("HELP: failed to send")
+
+    # Auto-delete help messages to keep channel clean.
+    for sm in sent_msgs:
+        try:
+            asyncio.create_task(_delete_message_later(sm, auto_del))
+        except Exception:
+            pass
 
     try:
         await message.delete()
@@ -1882,10 +2011,17 @@ async def try_apply_removewar_channel_command(
             except Exception:
                 pass
         if existed:
-            resp = f"🗑️ Usunięto wojnę z listy: `{war_id}`"
+            # Prefer updating the original LISTWAR message with a final, current status.
+            updated = await _try_update_listwar_status_message(
+                discord_client,
+                war_id=war_id,
+                status_line="🗑️ Usunięto ze strony",
+                ref_msg=None,
+            )
+            if not updated:
+                await message.channel.send(f"🗑️ Usunięto wojnę z listy: `{war_id}`")
         else:
-            resp = f"ℹ️ Nie znaleziono wojny: `{war_id}`"
-        await message.channel.send(resp)
+            await message.channel.send(f"ℹ️ Nie znaleziono wojny: `{war_id}`")
     except Exception:
         logger.exception("REMOVEWAR: failed")
 
@@ -1937,6 +2073,15 @@ async def try_apply_addwar_command(
     if existing_status == "confirmed":
         try:
             await ref_msg.add_reaction("ℹ️")
+        except Exception:
+            pass
+        try:
+            await _try_update_listwar_status_message(
+                discord_client,
+                war_id=war_id,
+                status_line="✅ Dodano do strony",
+                ref_msg=ref_msg,
+            )
         except Exception:
             pass
         try:
@@ -2014,7 +2159,15 @@ async def try_apply_addwar_command(
             await ref_msg.add_reaction("🟢")
         except Exception:
             pass
-        await message.channel.send(f"✅ Dodano do strony: `{war_id}`")
+        # Avoid spamming the channel on repeated edits/toggles: update the LISTWAR message with current status.
+        updated = await _try_update_listwar_status_message(
+            discord_client,
+            war_id=war_id,
+            status_line="✅ Dodano do strony",
+            ref_msg=ref_msg,
+        )
+        if not updated:
+            await message.channel.send(f"✅ Dodano do strony: `{war_id}`")
     except Exception:
         logger.exception("ADDWAR: failed to persist confirm war_id=%s", war_id)
         await message.channel.send("❌ Nie udało się dodać wojny do strony (błąd zapisu).")
@@ -2255,6 +2408,7 @@ def main():
         had_missing = False
         had_exception = False
         bot_post_msg: Optional[discord.Message] = None
+        listwar_progress_msg: Optional[discord.Message] = None
 
         # Capture a per-run DEBUG trace so it can be uploaded to Discord (useful on Render Free).
         try:
@@ -2352,125 +2506,161 @@ def main():
                     )
                     return
 
-                logger.info(
-                    "LISTWAR using referenced attachments: #1=%s (%d bytes), #2=%s (%d bytes)",
-                    atts[0].filename,
-                    int(getattr(atts[0], "size", 0) or 0),
-                    atts[1].filename,
-                    int(getattr(atts[1], "size", 0) or 0),
-                )
-
                 # Two-phase for cost: cache by the referenced screenshot message id.
                 # If users run LISTWAR multiple times for the same screenshots, we reuse the parse.
                 cached = WAR_PARSE_CACHE.get(ref_msg.id)
-                if cached is not None:
-                    summary, players, expected_max_rank = cached
-                    logger.info("LISTWAR cache hit: ref_msg.id=%s war_id=%s players=%d", ref_msg.id, war_id, len(players))
-                    processed_images = True
-                else:
-                    images = [await atts[0].read(), await atts[1].read()]
-                    logger.debug("LISTWAR downloaded attachments: sizes=%s", [len(b) for b in images])
-                    processed_images = True
 
+                # Inform the user immediately that processing has started (so they don't think the bot is stuck).
+                if LISTWAR_PROGRESS_ENABLED:
+                    eta = "kilka sekund" if cached is not None else "30–90 sekund"
                     try:
-                        summary, players, expected_max_rank, _debug = await parse_images_in_thread(images, trace_id=trace_id)
-                    except Exception as e:
-                        logger.exception("Błąd parsowania OpenAI (LISTWAR): %s", e)
-                        had_exception = True
-                        await message.channel.send("Nie udało się odczytać screenów (błąd po stronie parsera).")
+                        listwar_progress_msg = await message.channel.send(
+                            f"⏳ {message.author.mention} Rozpoczynam analizę screenów (LISTWAR) dla `{war_id}`. "
+                            f"To może potrwać {eta}…"
+                        )
+                    except Exception:
+                        listwar_progress_msg = None
+
+                try:
+                    logger.info(
+                        "LISTWAR using referenced attachments: #1=%s (%d bytes), #2=%s (%d bytes)",
+                        atts[0].filename,
+                        int(getattr(atts[0], "size", 0) or 0),
+                        atts[1].filename,
+                        int(getattr(atts[1], "size", 0) or 0),
+                    )
+
+                    if cached is not None:
+                        summary, players, expected_max_rank = cached
+                        logger.info(
+                            "LISTWAR cache hit: ref_msg.id=%s war_id=%s players=%d",
+                            ref_msg.id,
+                            war_id,
+                            len(players),
+                        )
+                        processed_images = True
+                    else:
+                        images = [await atts[0].read(), await atts[1].read()]
+                        logger.debug("LISTWAR downloaded attachments: sizes=%s", [len(b) for b in images])
+                        processed_images = True
+
+                        try:
+                            summary, players, expected_max_rank, _debug = await parse_images_in_thread(
+                                images, trace_id=trace_id
+                            )
+                        except Exception as e:
+                            logger.exception("Błąd parsowania OpenAI (LISTWAR): %s", e)
+                            had_exception = True
+                            await message.channel.send(
+                                "Nie udało się odczytać screenów (błąd po stronie parsera)."
+                            )
+                            return
+
+                        # Store parse result for this screenshot message
+                        try:
+                            if summary and players and expected_max_rank:
+                                WAR_PARSE_CACHE[ref_msg.id] = (summary, players, int(expected_max_rank))
+                                logger.info(
+                                    "LISTWAR cached parse: ref_msg.id=%s war_id=%s players=%d max_rank=%s",
+                                    ref_msg.id,
+                                    war_id,
+                                    len(players),
+                                    expected_max_rank,
+                                )
+                        except Exception:
+                            logger.exception("LISTWAR: failed to cache parse result")
+
+                    if not summary or not players:
+                        logger.warning(
+                            "Parser returned incomplete data: summary=%s players=%s",
+                            bool(summary),
+                            bool(players),
+                        )
+                        await message.channel.send(
+                            "Nie udało się jednoznacznie odczytać obu screenów (brak summary albo listy). "
+                            "Upewnij się, że widać cały panel z listą i paski wyniku."
+                        )
                         return
 
-                    # Store parse result for this screenshot message
+                    post = build_post(summary, players, expected_max_rank)
+                    post.war_id = war_id
+                    # Attach source metadata for traceability and later ADDWAR confirmation.
+                    post.ref_message_id = ref_msg.id
                     try:
-                        if summary and players and expected_max_rank:
-                            WAR_PARSE_CACHE[ref_msg.id] = (summary, players, int(expected_max_rank))
+                        post.ref_jump_url = ref_msg.jump_url
+                    except Exception:
+                        post.ref_jump_url = None
+                    try:
+                        post.guild_id = int(ref_msg.guild.id) if getattr(ref_msg, "guild", None) else None
+                    except Exception:
+                        post.guild_id = None
+                    try:
+                        post.channel_id = int(ref_msg.channel.id)
+                    except Exception:
+                        post.channel_id = None
+                    try:
+                        post.created_at_ts = int(ref_msg.created_at.timestamp())
+                    except Exception:
+                        post.created_at_ts = int(time.time())
+                    had_unknown = bool(post.unknown_ranks())
+                    had_out_of_roster = bool(post.out_of_roster_ranks())
+                    had_missing = bool(post.missing_ranks())
+                    had_warning = bool(had_missing or had_unknown or had_out_of_roster)
+
+                    out = render_post(post)
+                    parts = chunk_message(out)
+                    if len(parts) != 1:
+                        out = parts[0]
+                        logger.warning("Output message exceeded Discord limit; truncated to 1 chunk")
+
+                    # Reply to the original screenshot message for context.
+                    bot_post_msg = await ref_msg.reply(out, mention_author=False)
+                    WAR_POSTS[bot_post_msg.id] = post
+                    logger.info("LISTWAR sent war post msg_id=%s stored in WAR_POSTS", bot_post_msg.id)
+
+                    # Persist as a DRAFT (not shown on the website until ADDWAR).
+                    try:
+                        async with WAR_STORE_LOCK:
+                            existing = await asyncio.to_thread(WAR_STORE.get_war, post.war_id)
+                            existing_status = str((existing or {}).get("status") or "").lower()
+                        if existing_status != "confirmed":
+                            rec = _post_to_store_record(
+                                post, ref_msg=ref_msg, bot_msg=bot_post_msg, store_status="draft"
+                            )
+                            # Preserve immutable timestamps if we already have a draft.
+                            if isinstance(existing, dict):
+                                for k in ("created_at_ts", "created_at_iso", "ref_message_id", "ref_jump_url"):
+                                    if existing.get(k) is not None:
+                                        rec[k] = existing[k]
+                            async with WAR_STORE_LOCK:
+                                await asyncio.to_thread(WAR_STORE.upsert_war, post.war_id, rec)
+                            try:
+                                await _persist_progress_to_discord(client, what="wars")
+                            except Exception:
+                                pass
+                            logger.info("LISTWAR persisted DRAFT war_id=%s to store", post.war_id)
+                        else:
                             logger.info(
-                                "LISTWAR cached parse: ref_msg.id=%s war_id=%s players=%d max_rank=%s",
-                                ref_msg.id,
-                                war_id,
-                                len(players),
-                                expected_max_rank,
+                                "LISTWAR: war_id=%s already confirmed -> not overwriting store",
+                                post.war_id,
                             )
                     except Exception:
-                        logger.exception("LISTWAR: failed to cache parse result")
+                        logger.exception("LISTWAR: failed to persist draft war to store")
 
-                if not summary or not players:
-                    logger.warning("Parser returned incomplete data: summary=%s players=%s", bool(summary), bool(players))
-                    await message.channel.send(
-                        "Nie udało się jednoznacznie odczytać obu screenów (brak summary albo listy). "
-                        "Upewnij się, że widać cały panel z listą i paski wyniku."
-                    )
+                    # Delete LISTWAR command message to keep the channel clean (best effort).
+                    try:
+                        await message.delete()
+                    except Exception:
+                        pass
+
                     return
-
-                post = build_post(summary, players, expected_max_rank)
-                post.war_id = war_id
-                # Attach source metadata for traceability and later ADDWAR confirmation.
-                post.ref_message_id = ref_msg.id
-                try:
-                    post.ref_jump_url = ref_msg.jump_url
-                except Exception:
-                    post.ref_jump_url = None
-                try:
-                    post.guild_id = int(ref_msg.guild.id) if getattr(ref_msg, "guild", None) else None
-                except Exception:
-                    post.guild_id = None
-                try:
-                    post.channel_id = int(ref_msg.channel.id)
-                except Exception:
-                    post.channel_id = None
-                try:
-                    post.created_at_ts = int(ref_msg.created_at.timestamp())
-                except Exception:
-                    post.created_at_ts = int(time.time())
-                had_unknown = bool(post.unknown_ranks())
-                had_out_of_roster = bool(post.out_of_roster_ranks())
-                had_missing = bool(post.missing_ranks())
-                had_warning = bool(had_missing or had_unknown or had_out_of_roster)
-
-                out = render_post(post)
-                parts = chunk_message(out)
-                if len(parts) != 1:
-                    out = parts[0]
-                    logger.warning("Output message exceeded Discord limit; truncated to 1 chunk")
-
-                # Reply to the original screenshot message for context.
-                bot_post_msg = await ref_msg.reply(out, mention_author=False)
-                WAR_POSTS[bot_post_msg.id] = post
-                logger.info("LISTWAR sent war post msg_id=%s stored in WAR_POSTS", bot_post_msg.id)
-
-
-                # Persist as a DRAFT (not shown on the website until ADDWAR).
-                try:
-                    async with WAR_STORE_LOCK:
-                        existing = await asyncio.to_thread(WAR_STORE.get_war, post.war_id)
-                        existing_status = str((existing or {}).get("status") or "").lower()
-                    if existing_status != "confirmed":
-                        rec = _post_to_store_record(post, ref_msg=ref_msg, bot_msg=bot_post_msg, store_status="draft")
-                        # Preserve immutable timestamps if we already have a draft.
-                        if isinstance(existing, dict):
-                            for k in ("created_at_ts", "created_at_iso", "ref_message_id", "ref_jump_url"):
-                                if existing.get(k) is not None:
-                                    rec[k] = existing[k]
-                        async with WAR_STORE_LOCK:
-                            await asyncio.to_thread(WAR_STORE.upsert_war, post.war_id, rec)
+                finally:
+                    # Clean up the progress message if we managed to send one.
+                    if listwar_progress_msg is not None:
                         try:
-                            await _persist_progress_to_discord(client, what="wars")
+                            await listwar_progress_msg.delete()
                         except Exception:
                             pass
-                        logger.info("LISTWAR persisted DRAFT war_id=%s to store", post.war_id)
-                    else:
-                        logger.info("LISTWAR: war_id=%s already confirmed -> not overwriting store", post.war_id)
-                except Exception:
-                    logger.exception("LISTWAR: failed to persist draft war to store")
-
-
-                # Delete LISTWAR command message to keep the channel clean (best effort).
-                try:
-                    await message.delete()
-                except Exception:
-                    pass
-
-                return
 
             # ADDWAR: reply to the bot's war list to confirm and add it to the website.
             try:
@@ -2551,11 +2741,27 @@ def main():
                         filename = f"log-{trace_id}.txt"
                         file = discord.File(fp=bio, filename=filename)
 
+                        # IMPORTANT: send debug logs to the private storage channel (e.g. #warbot-storage)
+                        # instead of spamming the public results channel (#wyniki-wojenne).
+                        target_ch: discord.abc.Messageable = message.channel
+                        try:
+                            storage = await _ensure_storage_channel(client)
+                            if storage is not None:
+                                target_ch = storage
+                        except Exception:
+                            pass
+
+                        src = None
+                        try:
+                            src = (bot_post_msg.jump_url if bot_post_msg is not None else message.jump_url)
+                        except Exception:
+                            src = None
+
                         note = f"📝 Debug log: `{trace_id}`" + (" (truncated)" if truncated else "")
-                        if bot_post_msg is not None:
-                            await bot_post_msg.reply(note, file=file, mention_author=False)
-                        else:
-                            await message.channel.send(note, file=file)
+                        if src:
+                            note += f"\n🔗 Source: {src}"
+
+                        await target_ch.send(note, file=file)
             except Exception:
                 logger.exception("Failed to upload debug log to Discord")
 
