@@ -389,6 +389,13 @@ async def start_keepalive_server():
         if limit is not None:
             wars = wars[:limit]
 
+        # Normalize mode for stable UI filtering (legacy records may have mixed case).
+        for w in wars:
+            m = w.get("mode")
+            if isinstance(m, str):
+                mm = m.strip().upper()
+                w["mode"] = mm
+
         return web.json_response({"wars": wars, "count": len(wars)})
 
     async def api_roster(_request):
@@ -1163,7 +1170,8 @@ def render_post(post: WarPost) -> str:
         f"**{s.our_alliance}** {s.our_score} — {s.opponent_score} **{s.opponent_alliance}**\n"
     )
     if s.war_mode:
-        header += f"Tryb: **{s.war_mode}**" + (" (BETA)\n" if s.beta_badge else "\n")
+        mode_disp = s.war_mode.strip().upper() if isinstance(s.war_mode, str) else str(s.war_mode)
+        header += f"Tryb: **{mode_disp}**" + (" (BETA)\n" if s.beta_badge else "\n")
     if post.war_id:
         header += f"ID: `{post.war_id}`\n"
     header += "\n"
@@ -1309,6 +1317,12 @@ def _post_to_store_record(
     out_of_roster_count = len(out_of_roster)
     missing_count = len(missing)
 
+    mode_norm: Optional[str] = None
+    if s.war_mode and isinstance(s.war_mode, str):
+        mode_norm = s.war_mode.strip().upper()
+        if not mode_norm:
+            mode_norm = None
+
     rec: Dict[str, Any] = {
         "war_id": post.war_id,
         "ref_message_id": ref_id,
@@ -1324,7 +1338,7 @@ def _post_to_store_record(
         # Backwards compatible aliases (older UI keys)
         "enemy_score": int(s.opponent_score),
         "diff": int(diff),
-        "mode": s.war_mode,
+        "mode": mode_norm,
         "players": players,
         "unknown": unknown,
         "out_of_roster": out_of_roster,

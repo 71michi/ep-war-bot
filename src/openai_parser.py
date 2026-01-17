@@ -678,8 +678,11 @@ def _extract_war_mode_fallback(image_bytes: bytes, model: str) -> Optional[str]:
 
     out = resp.output_parsed
     if out and out.war_mode:
-        wm = out.war_mode.strip()
-        return wm if wm else None
+        wm = out.war_mode
+        if isinstance(wm, str) and wm.strip().lower() in {"null", "none", "nil", "n/a"}:
+            return None
+        wm2 = str(wm).strip().upper()
+        return wm2 if wm2 else None
     return None
 
 
@@ -757,6 +760,12 @@ Zasady:
             for p in out.chat_results.players:
                 if isinstance(p.name_norm, str) and p.name_norm.strip().lower() in {"null", "none", "nil", "n/a"}:
                     p.name_norm = None
+        if out.kind == "war_summary" and out.war_summary:
+            wm = out.war_summary.war_mode
+            if isinstance(wm, str) and wm.strip().lower() in {"null", "none", "nil", "n/a"}:
+                out.war_summary.war_mode = None
+            elif isinstance(wm, str):
+                out.war_summary.war_mode = wm.strip().upper()
         logger.debug("parse_single_image result: kind=%s conf=%.2f notes=%s", out.kind, out.confidence, (out.notes or ""))
         if out.kind == "chat_results" and out.chat_results:
             logger.debug("chat_results players=%d expected_max_rank=%s", len(out.chat_results.players or []), out.chat_results.expected_max_rank)
@@ -1038,6 +1047,11 @@ def parse_war_from_images(
         if wm:
             summary.war_mode = wm
             logger.info("war_mode fallback success: %s", wm)
+
+    # Final normalization: keep war_mode stable for downstream filtering/UI.
+    if summary and summary.war_mode and isinstance(summary.war_mode, str):
+        wm3 = summary.war_mode.strip().upper()
+        summary.war_mode = wm3 if wm3 else None
 
     logger.info("END parse_war_from_images: summary=%s players=%s expected_max_rank=%s", bool(summary), (len(players) if players else None), expected_max_rank)
 
