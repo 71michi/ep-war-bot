@@ -16,6 +16,11 @@
     th, td { border-bottom: 1px solid #222a35; padding: 8px 6px; vertical-align: top; }
     th { text-align: left; color: #c9d2e0; font-weight: 600; }
     tr:hover td { background: rgba(255,255,255,0.02); }
+    /* Wyraźniejsze Zwycięstwo / Porażka (delikatne tło całego wiersza) */
+    tr.row-win td { background: rgba(46, 204, 113, 0.06); }
+    tr.row-loss td { background: rgba(231, 76, 60, 0.06); }
+    tr.row-win:hover td { background: rgba(46, 204, 113, 0.09); }
+    tr.row-loss:hover td { background: rgba(231, 76, 60, 0.09); }
     .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; border: 1px solid #2a3443; font-size: 12px; }
     .ok { border-color: rgba(46, 204, 113, 0.6); }
     .bad { border-color: rgba(231, 76, 60, 0.6); }
@@ -27,6 +32,8 @@
     .toggle { background: transparent; border: 1px solid #2a3443; color: #e7e7e7; border-radius: 8px; padding: 4px 8px; cursor: pointer; }
     .toggle:hover { background: rgba(255,255,255,0.03); }
     .details-row td { background: rgba(255,255,255,0.015); }
+    .btn { background: transparent; border: 1px solid #2a3443; color: #e7e7e7; border-radius: 8px; padding: 6px 10px; cursor: pointer; }
+    .btn:hover { background: rgba(255,255,255,0.03); }
   </style>
 </head>
 <body>
@@ -67,14 +74,12 @@
           <tr>
             <th></th>
             <th>Data</th>
-            <th>ID</th>
             <th>Wynik</th>
             <th class="right">Różnica</th>
             <th>Tryb</th>
             <th class="right">My</th>
             <th>Przeciwnik</th>
             <th class="right">Ich wynik</th>
-            <th class="right">Unknown</th>
             <th class="right">Poza rosterem</th>
           </tr>
         </thead>
@@ -103,22 +108,9 @@
         <tbody></tbody>
       </table>
     </div>
-    <details id="rosterMoreDetails" style="margin-top:10px; display:none;">
-      <summary class="muted">Pokaż pozostałych</summary>
-      <div style="overflow:auto; margin-top:10px;">
-        <table id="rosterTableMore">
-          <thead>
-            <tr>
-              <th>Nick (roster)</th>
-              <th class="right">Średnia</th>
-              <th class="right">Suma</th>
-              <th class="right">Wojen z pkt</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
-    </details>
+    <div style="margin-top:10px; display:flex; justify-content:flex-start;">
+      <button id="rosterToggleBtn" class="btn" style="display:none;">Pokaż więcej</button>
+    </div>
   </div>
 
 <script>
@@ -227,9 +219,10 @@
     for (const w of filtered) {
       const res = w.result || '';
       const isWin = /zwyci/i.test(res);
-      const pillClass = isWin ? 'ok' : 'bad';
+      const isLoss = /(poraż|przegr)/i.test(res);
+      const isDraw = /remis/i.test(res);
+      const pillClass = isWin ? 'ok' : (isLoss ? 'bad' : '');
       const diff = Number(w.diff || 0);
-      const unknownN = Number(w.unknown_count || 0);
       const oorN = Number(w.out_of_roster_count || 0);
 
       const mode = (w.mode || '').trim() || '-';
@@ -244,7 +237,7 @@
       }).join('\n');
 
       const tr = document.createElement('tr');
-      tr.className = 'war-row';
+      tr.className = 'war-row' + (isWin ? ' row-win' : (isLoss ? ' row-loss' : ''));
 
       const btn = document.createElement('button');
       btn.className = 'toggle';
@@ -254,7 +247,11 @@
       const detailsTr = document.createElement('tr');
       detailsTr.className = 'details-row';
       detailsTr.style.display = 'none';
-      detailsTr.innerHTML = `<td colspan="11"><pre class="small">${escapeHtml(detailsLines || '')}</pre></td>`;
+      const wid = (w.war_id || '').trim();
+      detailsTr.innerHTML = `<td colspan="9">
+        <pre class="small">${escapeHtml(detailsLines || '')}</pre>
+        ${wid ? `<div class="muted small" style="margin-top:6px;">ID wojny: <code>${escapeHtml(wid)}</code></div>` : ''}
+      </td>`;
 
       btn.onclick = () => {
         const isOpen = detailsTr.style.display !== 'none';
@@ -265,14 +262,12 @@
       tr.innerHTML = `
         <td></td>
         <td>${escapeHtml(fmtDate(w.created_at_ts || 0))}</td>
-        <td><span class="pill">${escapeHtml(w.war_id || '')}</span></td>
         <td><span class="pill ${pillClass}">${escapeHtml(res)}</span></td>
         <td class="right">${escapeHtml((diff >= 0 ? '+' : '') + diff)}</td>
         <td>${escapeHtml(mode)}</td>
         <td class="right">${escapeHtml(w.our_score ?? '')}</td>
         <td>${escapeHtml(opp)}</td>
         <td class="right">${escapeHtml((w.opponent_score ?? w.enemy_score ?? '') + '')}</td>
-        <td class="right">${unknownN ? `<span class="pill warn">${unknownN}</span>` : '0'}</td>
         <td class="right">${oorN ? `<span class="pill warn">${oorN}</span>` : '0'}</td>
       `;
       tr.children[0].appendChild(btn);
@@ -296,6 +291,7 @@
     }
     sel.value = String(Math.min(5, max));
 
+    let expanded = false;
     const render = () => {
       const x = Number(sel.value || 1);
       // Średnia ma być liczona z X NAJŚWIEŻSZYCH wojen (po dacie dodania screenów na Discordzie),
@@ -336,8 +332,14 @@
 
       const tbody = document.querySelector('#rosterTable tbody');
       tbody.innerHTML = '';
-      for (const r of top) {
+      expanded = false;
+
+      rows.forEach((r, idx) => {
         const tr = document.createElement('tr');
+        if (idx >= 5) {
+          tr.classList.add('more-row');
+          tr.style.display = 'none';
+        }
         tr.innerHTML = `
           <td>${escapeHtml(r.name)}</td>
           <td class="right">${r.avg.toFixed(1)}</td>
@@ -345,27 +347,23 @@
           <td class="right">${r.warsCount}/${x}</td>
         `;
         tbody.appendChild(tr);
-      }
+      });
 
-      const more = document.getElementById('rosterMoreDetails');
-      const moreTbody = document.querySelector('#rosterTableMore tbody');
-      moreTbody.innerHTML = '';
+      const btn = document.getElementById('rosterToggleBtn');
       if (rest.length > 0) {
-        more.style.display = '';
-        more.querySelector('summary').textContent = `Pokaż pozostałych (${rest.length})`;
-        for (const r of rest) {
-          const tr = document.createElement('tr');
-          tr.innerHTML = `
-            <td>${escapeHtml(r.name)}</td>
-            <td class="right">${r.avg.toFixed(1)}</td>
-            <td class="right">${r.sum}</td>
-            <td class="right">${r.warsCount}/${x}</td>
-          `;
-          moreTbody.appendChild(tr);
-        }
+        btn.style.display = '';
+        btn.textContent = 'Pokaż więcej';
+        btn.title = `Pokaż ${rest.length} pozostałych`;
+        btn.onclick = () => {
+          expanded = !expanded;
+          document.querySelectorAll('#rosterTable tbody tr.more-row').forEach(tr => {
+            tr.style.display = expanded ? '' : 'none';
+          });
+          btn.textContent = expanded ? 'Pokaż mniej' : 'Pokaż więcej';
+        };
       } else {
-        more.style.display = 'none';
-        more.open = false;
+        btn.style.display = 'none';
+        btn.onclick = null;
       }
     };
 
