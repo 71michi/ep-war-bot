@@ -25,7 +25,7 @@ def build_discord_message(summary: WarSummary, players: List[PlayerScore]) -> st
     if summary.war_mode:
         header += f"Tryb: **{summary.war_mode}**" + (" (BETA)\n" if summary.beta_badge else "\n")
     else:
-        header += "\n"
+        header += "Tryb: *(nie odczytano / brak na screenie)*\n"
 
     return header + "\n" + "\n".join(lines)
 

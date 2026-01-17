@@ -13,7 +13,7 @@ def main():
     paths = [Path(sys.argv[1]), Path(sys.argv[2])]
     images = [p.read_bytes() for p in paths]
 
-    model = env_str("OPENAI_MODEL", "gpt-4o-mini")
+    model = env_str("OPENAI_MODEL", "gpt-4o")
     summary, players, expected_max_rank, debug = parse_war_from_images(images, model=model)
 
     if not summary or not players:

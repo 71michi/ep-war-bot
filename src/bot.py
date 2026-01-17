@@ -189,7 +189,9 @@ def _new_trace_id(prefix: str = "msg") -> str:
 
 DISCORD_TOKEN = env_str("DISCORD_TOKEN", "")
 WATCH_CHANNEL_ID = env_int("WATCH_CHANNEL_ID", 0)
-OPENAI_MODEL = env_str("OPENAI_MODEL", "gpt-4o-mini")
+# Default to a slightly better model for more robust OCR / vision parsing.
+# You can override via OPENAI_MODEL in .env (e.g. set gpt-4o-mini for cheaper runs).
+OPENAI_MODEL = env_str("OPENAI_MODEL", "gpt-4o")
 ALIASES_PATH = env_str("ALIASES_PATH", "aliases.json")
 ROSTER_PATH = env_str("ROSTER_PATH", "roster.json")
 ROSTER_OVERRIDES_PATH = env_str("ROSTER_OVERRIDES_PATH", "roster_overrides.json")

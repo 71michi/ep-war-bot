@@ -296,7 +296,7 @@ def main() -> None:
     ap.add_argument("--out", required=True, help="Output directory for results")
     ap.add_argument(
         "--model",
-        default=env_str("OPENAI_MODEL", "gpt-4o-mini"),
+        default=env_str("OPENAI_MODEL", "gpt-4o"),
         help="OpenAI model to use (default: OPENAI_MODEL env var)",
     )
     args = ap.parse_args()

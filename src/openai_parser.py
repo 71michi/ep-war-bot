@@ -635,54 +635,60 @@ def _extract_war_mode_fallback(image_bytes: bytes, model: str) -> Optional[str]:
     img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     w, h = img.size
 
-    # ROI: prawa część panelu wojny, okolice ikonki + napis trybu (bez "POLE BITWY")
-    # Proporcje dobrane tak, by złapać: ikonkę + nazwę trybu (np. HORDA NIEUMARŁYCH)
-    x1 = int(w * 0.55)
-    y1 = int(h * 0.45)
-    x2 = int(w * 0.98)
-    y2 = int(h * 0.57)
+    # ROI: w praktyce tryb/zasada wojny bywa pokazywana w różnych miejscach panelu.
+    # Najczęściej jest to prawa część "AKTYWNA WOJNA" – ikonka + napis (np. "LEPSZY ATAK")
+    # NAD przyciskiem "POLE BITWY". Na części screenów (inne proporcje/UI) bywa wyżej.
+    # Dlatego próbujemy 2 zakresy (niższy i wyższy) i bierzemy pierwsze trafienie.
 
-    crop = img.crop((x1, y1, x2, y2))
+    candidate_rois = [
+        # Typowe telefony (jak w Twoim przykładzie): ikonka + napis są dość nisko.
+        (int(w * 0.56), int(h * 0.60), int(w * 0.98), int(h * 0.78)),
+        # Starsze/alternatywne UI: ten sam blok potrafi być wyżej.
+        (int(w * 0.55), int(h * 0.45), int(w * 0.98), int(h * 0.60)),
+    ]
 
-    buf = io.BytesIO()
-    crop.save(buf, format="PNG")
-    crop_bytes = buf.getvalue()
-
-    data_url = _to_data_url(crop_bytes)
     timeout_s = env_int("OPENAI_TIMEOUT_SECONDS", 90)
-
     prompt = (
-        "Odczytaj WYŁĄCZNIE nazwę trybu wojennego z tego fragmentu ekranu. "
-        "Nazwa jest bezpośrednio POD okrągłą ikonką trybu i NAD przyciskiem 'POLE BITWY'. "
-        "Zwróć samą nazwę (np. 'HORDA NIEUMARŁYCH', 'GRAD STRZAŁ', 'ŻAR Z NIEBA', 'STAROŻYTNY UPIÓR'). "
+        "Odczytaj WYŁĄCZNIE nazwę trybu/zasady wojny z tego fragmentu ekranu. "
+        "Nazwa jest bezpośrednio POD ikonką (np. strzałka w górę) i NAD przyciskiem 'POLE BITWY'. "
+        "Przykłady: 'LEPSZY ATAK', 'HORDA NIEUMARŁYCH', 'GRAD STRZAŁ', 'ŻAR Z NIEBA', 'STAROŻYTNY UPIÓR'. "
         "Nie zwracaj 'POLE BITWY' ani innych napisów. Jeśli nie widać – zwróć null."
     )
 
-    logger.debug("War mode fallback OCR crop (w=%d,h=%d) roi=(%d,%d,%d,%d)", w, h, x1, y1, x2, y2)
-    resp = client.responses.parse(
-        model=model,
-        input=[
-            {"role": "system", "content": "Jesteś OCR. Zwróć tylko pole war_mode."},
-            {
-                "role": "user",
-                "content": [
-                    {"type": "input_text", "text": prompt},
-                    {"type": "input_image", "image_url": data_url},
-                ],
-            },
-        ],
-        text_format=WarModeOnly,
-        temperature=0,
-        timeout=timeout_s,
-    )
+    for (x1, y1, x2, y2) in candidate_rois:
+        crop = img.crop((x1, y1, x2, y2))
+        buf = io.BytesIO()
+        crop.save(buf, format="PNG")
+        crop_bytes = buf.getvalue()
+        data_url = _to_data_url(crop_bytes)
 
-    out = resp.output_parsed
-    if out and out.war_mode:
-        wm = out.war_mode
-        if isinstance(wm, str) and wm.strip().lower() in {"null", "none", "nil", "n/a"}:
-            return None
-        wm2 = str(wm).strip().upper()
-        return wm2 if wm2 else None
+        logger.debug("War mode fallback OCR crop (w=%d,h=%d) roi=(%d,%d,%d,%d)", w, h, x1, y1, x2, y2)
+        resp = client.responses.parse(
+            model=model,
+            input=[
+                {"role": "system", "content": "Jesteś OCR. Zwróć tylko pole war_mode."},
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "input_text", "text": prompt},
+                        {"type": "input_image", "image_url": data_url},
+                    ],
+                },
+            ],
+            text_format=WarModeOnly,
+            temperature=0,
+            timeout=timeout_s,
+        )
+
+        out = resp.output_parsed
+        if out and out.war_mode:
+            wm = out.war_mode
+            if isinstance(wm, str) and wm.strip().lower() in {"null", "none", "nil", "n/a"}:
+                continue
+            wm2 = str(wm).strip().upper()
+            if wm2:
+                return wm2
+
     return None
 
 
@@ -722,6 +728,7 @@ Zwracasz TYLKO dane zgodne ze schematem (Structured Output).
       - war_mode: NAZWA TRYBU WOJENNEGO
         UWAGA: war_mode jest ZAWSZE pod ikonką trybu i nad napisem/przyciskiem „POLE BITWY”.
         Jeśli widać, ZAWSZE uzupełnij war_mode.
+        (Przykłady war_mode: "LEPSZY ATAK", "HORDA NIEUMARŁYCH", "GRAD STRZAŁ", "ŻAR Z NIEBA".)
       - beta_badge: true jeśli na panelu widać „BETA”, inaczej null/false.
 
 ROSTER:
@@ -1024,6 +1031,22 @@ def parse_war_from_images(
             and bool(details2.get("mx"))
         )
         if structure_ok:
+            # If we still have duplicate canonical names, it's very often a single misread line
+            # copied into another row (e.g. rank 2 read as the same as rank 5). Run a targeted
+            # row-level re-OCR for ONLY the involved ranks to fix it cheaply.
+            if details2.get("duplicate_names") and details2.get("duplicate_name_ranks"):
+                dup_ranks = list(details2.get("duplicate_name_ranks") or [])
+                logger.info("Duplicate-name ranks detected -> row-repair: %s", dup_ranks)
+                upd_dup = _repair_suspicious_rows(
+                    chat_image_bytes,
+                    model=model,
+                    expected_max_rank=int(expected_max_rank),
+                    suspicious_ranks=dup_ranks,
+                )
+                if upd_dup:
+                    players = _merge_players_row_repair(players or [], upd_dup, log_prefix="Row-repair(dup-names)")
+                    logger.info("Duplicate-name row-repair merged -> %d players", len(players or []))
+
             roster_path = env_str("ROSTER_PATH", "roster.json")
             roster = _load_roster(roster_path)
             min_sim = env_float("CHAT_ROW_REPAIR_ROSTER_MIN_SIM", 80.0)
@@ -1047,6 +1070,10 @@ def parse_war_from_images(
         if wm:
             summary.war_mode = wm
             logger.info("war_mode fallback success: %s", wm)
+        else:
+            # Some summary screens simply do NOT show the war mode label at all.
+            # In that case keep a stable placeholder instead of leaving it empty.
+            summary.war_mode = "UNKNOWN"
 
     # Final normalization: keep war_mode stable for downstream filtering/UI.
     if summary and summary.war_mode and isinstance(summary.war_mode, str):

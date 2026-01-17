@@ -50,7 +50,7 @@ Jeżeli chcesz przetestować 10–50 screenów "hurtowo" tym samym modelem i tym
 
 Upewnij się, że masz ustawione co najmniej:
 - `OPENAI_API_KEY=...`
-- (opcjonalnie) `OPENAI_MODEL=gpt-4o-mini`
+- (opcjonalnie) `OPENAI_MODEL=gpt-4o` (domyślnie) lub `OPENAI_MODEL=gpt-4o-mini` (taniej)
 
 ### 2) Struktura input
 
@@ -85,7 +85,7 @@ pip install -r requirements.txt
 
 python -m src.batch_test --input ./input --out ./results
 # opcjonalnie:
-python -m src.batch_test --input ./input --out ./results --model gpt-4o-mini
+python -m src.batch_test --input ./input --out ./results --model gpt-4o
 ```
 
 ### 4) Wyniki
