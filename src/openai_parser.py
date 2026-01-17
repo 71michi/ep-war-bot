@@ -253,6 +253,8 @@ Każdy wiersz ma format zbliżony do:
 
 Zasady krytyczne:
 - NIE POMIJAJ żadnego wiersza.
+- Jeśli rank i punkty są czytelne, ale nick jest trudny: przepisz możliwie najbliżej; w ostateczności ustaw name_raw na '???' (ale NIE pomijaj wiersza).
+- Nie duplikuj rang; każdy widoczny [n] ma trafić do outputu dokładnie raz.
 - Nick może zawierać małe litery i cyfry (np. ropuch13) oraz ozdobniki. Przepisz je do name_raw.
 - points to ostatnia liczba w wierszu.
 - rank to liczba w nawiasie kwadratowym [n].
@@ -528,14 +530,29 @@ def _repair_suspicious_rows(image_bytes: bytes, model: str, expected_max_rank: i
     if not suspicious_ranks or not expected_max_rank or expected_max_rank <= 0:
         return None
 
-    max_ranks = env_int("CHAT_ROW_REPAIR_MAX_RANKS", 5)
-    if len(set(suspicious_ranks)) > max_ranks:
-        logger.debug("Row-repair skipped: too many suspicious ranks (%d > %d)", len(set(suspicious_ranks)), max_ranks)
-        return None
+    max_ranks = env_int("CHAT_ROW_REPAIR_MAX_RANKS", 12)
+    uniq = sorted(set(int(r) for r in suspicious_ranks if isinstance(r, int) and r > 0))
+    # If there are many suspicious ranks, downselect to keep cost under control while still covering the list.
+    if len(uniq) > max_ranks:
+        picks = set()
+        # Cover local problem areas
+        for (a, b) in _cluster_ranks(uniq, gap=2):
+            picks.add(a); picks.add((a + b) // 2); picks.add(b)
+        # Add a few "sentinel" ranks to catch silent shifts / missing rows in the middle.
+        for rr in {max(1, expected_max_rank // 3), max(1, expected_max_rank // 2), max(1, (2 * expected_max_rank) // 3)}:
+            picks.add(rr)
+        uniq2 = sorted(r for r in picks if 1 <= r <= expected_max_rank)
+        if len(uniq2) > max_ranks and max_ranks > 1:
+            # Evenly sample to max_ranks (keep coverage).
+            idxs = {round(i * (len(uniq2) - 1) / (max_ranks - 1)) for i in range(max_ranks)}
+            uniq2 = [uniq2[i] for i in sorted(idxs)]
+        logger.debug("Row-repair downselected suspicious ranks: %d -> %d (%s)", len(uniq), len(uniq2), uniq2)
+        uniq = uniq2
+    suspicious_ranks = uniq
 
-    max_clusters = env_int("CHAT_ROW_REPAIR_MAX_CLUSTERS", 3)
-    header_ratio = env_float("CHAT_ROW_REPAIR_HEADER_RATIO", 0.12)
-    pad_lines = env_float("CHAT_ROW_REPAIR_PAD_LINES", 1.35)
+    max_clusters = env_int("CHAT_ROW_REPAIR_MAX_CLUSTERS", 5)
+    header_ratio = env_float("CHAT_ROW_REPAIR_HEADER_RATIO", 0.14)
+    pad_lines = env_float("CHAT_ROW_REPAIR_PAD_LINES", 1.6)
 
     roster_path = env_str("ROSTER_PATH", "roster.json")
     roster = _load_roster(roster_path)
@@ -692,6 +709,8 @@ Zwracasz TYLKO dane zgodne ze schematem (Structured Output).
       - name_raw: dokładnie jak widać (z ozdobnikami)
       - name_norm: jeżeli jesteś PEWNY, wybierz DOKŁADNIE jeden z nicków z ROSTER, inaczej null
       - NIE POMIJAJ żadnych wierszy (nicki mogą zawierać małe litery i cyfry, np. 'ropuch13')
+      - Jeśli widzisz rank i punkty, ale nick jest trudny: przepisz możliwie najbliżej. Jeśli nadal niepewne, ustaw name_raw na '???' (ale ZAWSZE zwróć rekord dla tej rangi).
+      - Upewnij się, że rangi są unikalne i mieszczą się w 1..expected_max_rank; nie duplikuj rang.
 
    B) Jeśli SOJUSZ/WOJNA:
       - our_alliance, opponent_alliance

@@ -930,11 +930,29 @@ def apply_roster_mapping(lines_by_rank: Dict[int, WarLine], roster: List[str]) -
         else:
             cleaned = normalize_display(ln.name_raw)
             if is_clean_display(ln.name_raw):
-                # Show clean nick even if it's not in roster (but warn).
-                ln.name_display = cleaned
-                ln.unknown_raw = None
-                ln.out_of_roster_raw = cleaned
-                logger.debug("Final roster mapping: rank %s raw=%r -> OUT_OF_ROSTER(%s)", r, ln.name_raw, cleaned)
+                if cleaned in roster_exact:
+                    # Clean nick that *is* in roster, but we couldn't assign it uniquely.
+                    # Treat as UNKNOWN to force manual correction instead of misleading "poza rosterem".
+                    ln.name_display = "UNKNOWN"
+                    ln.unknown_raw = cleaned
+                    ln.out_of_roster_raw = None
+                    logger.debug(
+                        "Final roster mapping: rank %s raw=%r -> UNKNOWN_DUPLICATE_IN_ROSTER(%s)",
+                        r,
+                        ln.name_raw,
+                        cleaned,
+                    )
+                else:
+                    # Show clean nick even if it's not in roster (but warn).
+                    ln.name_display = cleaned
+                    ln.unknown_raw = None
+                    ln.out_of_roster_raw = cleaned
+                    logger.debug(
+                        "Final roster mapping: rank %s raw=%r -> OUT_OF_ROSTER(%s)",
+                        r,
+                        ln.name_raw,
+                        cleaned,
+                    )
             else:
                 ln.name_display = "UNKNOWN"
                 ln.unknown_raw = cleaned or ln.name_raw
