@@ -7,11 +7,12 @@ import uuid
 import io
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
+from collections import OrderedDict
 
 from aiohttp import web
 import discord
 
-from .config import env_str, env_int
+from .config import env_str, env_int, env_bool
 from .logging_setup import setup_logging, set_trace_id, reset_trace_id, get_trace_id
 from .openai_parser import parse_war_from_images, WarSummary, PlayerScore
 from .nicknames import normalize_with_aliases, normalize_display, roster_match, canonical_key, is_clean_display
@@ -24,6 +25,120 @@ from rapidfuzz import fuzz, process
 
 setup_logging()
 logger = logging.getLogger("warbot")
+
+
+# ----------------------------
+# Duplicate-response guard
+# ----------------------------
+#
+# On some hosting setups (especially during redeploys) it's possible to have a
+# short overlap where two bot instances are connected to Discord at the same
+# time. Then both can process the same command message and send duplicate
+# replies.
+#
+# We mitigate this by attempting to delete command messages *immediately* to
+# "claim" them. If another instance already handled the command, the delete
+# will fail with NotFound and we skip processing.
+EARLY_DELETE_COMMANDS = env_bool("EARLY_DELETE_COMMANDS", True)
+
+# In practice, Discord may occasionally deliver the same message event more than once
+# (e.g. around reconnect/resume), and on free hosting tiers you might also get short
+# overlaps of two bot processes. To avoid duplicate replies we implement a small
+# idempotency cache (per-process) plus a best-effort cross-process "claim".
+COMMAND_DEDUP_TTL_SEC = env_int("COMMAND_DEDUP_TTL_SEC", 120)
+COMMAND_DEDUP_MAX = env_int("COMMAND_DEDUP_MAX", 5000)
+USE_REACTION_CLAIM = env_bool("USE_REACTION_CLAIM", True)
+COMMAND_CLAIM_REACTION = env_str("COMMAND_CLAIM_REACTION", "🔒")
+
+# msg_id -> first_seen_ts (LRU)
+_COMMAND_DEDUP_CACHE: "OrderedDict[int, float]" = OrderedDict()
+
+
+def _command_seen_recently(msg_id: int) -> bool:
+    """Return True if msg_id was processed recently (idempotency guard)."""
+    now = time.time()
+
+    # purge old
+    if COMMAND_DEDUP_TTL_SEC > 0:
+        cutoff = now - float(COMMAND_DEDUP_TTL_SEC)
+        # OrderedDict: pop from left while old
+        while _COMMAND_DEDUP_CACHE:
+            k0, ts0 = next(iter(_COMMAND_DEDUP_CACHE.items()))
+            if ts0 >= cutoff:
+                break
+            _COMMAND_DEDUP_CACHE.popitem(last=False)
+
+    if msg_id in _COMMAND_DEDUP_CACHE:
+        # touch
+        _COMMAND_DEDUP_CACHE.move_to_end(msg_id)
+        return True
+
+    _COMMAND_DEDUP_CACHE[msg_id] = now
+    _COMMAND_DEDUP_CACHE.move_to_end(msg_id)
+    # cap
+    while len(_COMMAND_DEDUP_CACHE) > max(1, int(COMMAND_DEDUP_MAX)):
+        _COMMAND_DEDUP_CACHE.popitem(last=False)
+    return False
+
+
+async def _try_claim_command_message(message: discord.Message) -> bool:
+    """Best-effort cross-instance de-duplication.
+
+    If the bot has permission to delete messages, we try to delete the user's
+    command message *immediately*. Only one instance can successfully delete;
+    the others will receive NotFound and must skip processing.
+
+    Returns:
+        True  -> proceed with handling
+        False -> skip (likely handled by another instance)
+    """
+
+    # Per-process idempotency guard (handles duplicate delivery within a single instance)
+    try:
+        if _command_seen_recently(int(message.id)):
+            logger.info("Duplicate command delivery detected -> skip: msg_id=%s", message.id)
+            return False
+    except Exception:
+        # never block
+        pass
+
+    # Cross-process claim: best-effort reaction lock (works even without Manage Messages)
+    if USE_REACTION_CLAIM and COMMAND_CLAIM_REACTION:
+        try:
+            await message.add_reaction(COMMAND_CLAIM_REACTION)
+            logger.debug("Claimed command message by reaction: msg_id=%s emoji=%s", message.id, COMMAND_CLAIM_REACTION)
+        except discord.NotFound:
+            # likely already deleted by another instance
+            logger.info("Command message missing while claiming (duplicate?) -> skip: msg_id=%s", message.id)
+            return False
+        except discord.Forbidden:
+            # Missing Add Reactions permission; continue to other methods.
+            logger.debug("Reaction-claim forbidden; will try early delete if enabled: msg_id=%s", message.id)
+        except discord.HTTPException as e:
+            # If another instance already added this reaction, Discord returns 400; treat as claimed elsewhere.
+            if getattr(e, "status", None) == 400:
+                logger.info("Reaction-claim already exists (duplicate instance?) -> skip: msg_id=%s", message.id)
+                return False
+            logger.debug("Reaction-claim HTTPException; continuing: msg_id=%s", message.id)
+
+    if not EARLY_DELETE_COMMANDS:
+        return True
+
+    try:
+        await message.delete()
+        logger.debug("Claimed command message by early delete: msg_id=%s", message.id)
+        return True
+    except discord.NotFound:
+        logger.info("Command message already deleted (duplicate instance?) -> skip: msg_id=%s", message.id)
+        return False
+    except discord.Forbidden:
+        # Missing Manage Messages permission; we can't claim. Fall back to normal handling.
+        logger.debug("EARLY_DELETE_COMMANDS: missing permissions; cannot claim msg_id=%s", message.id)
+        return True
+    except discord.HTTPException:
+        # Any transient HTTP error: don't block execution.
+        logger.debug("EARLY_DELETE_COMMANDS: HTTPException; cannot claim msg_id=%s", message.id)
+        return True
 
 
 def _base36(n: int) -> str:
@@ -2108,6 +2223,12 @@ def main():
             tok0_up = text.split()[0].upper()
             if tok0_up not in {"ADDROSTER", "REMOVEROSTER", "CURRENTROSTER", "REMOVEWAR", "HELP"}:
                 return
+
+        # Try to "claim" this command message to prevent duplicate responses
+        # in case two instances are connected at the same time.
+        claimed = await _try_claim_command_message(message)
+        if not claimed:
+            return
 
         trace_id = _new_trace_id("discord")
         token = set_trace_id(trace_id)
