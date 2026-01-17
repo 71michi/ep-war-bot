@@ -7,7 +7,9 @@ from typing import Dict, Optional
 
 from rapidfuzz import fuzz, process
 
-_G3W_PREFIX_RE = re.compile(r"^\s*\[g3w\]\s*", re.IGNORECASE)
+# In practice, alliance tags vary (e.g. [g3w], [g3ω], [g3W], etc.).
+# Strip any leading "[g3... ]" tag to avoid polluting matching.
+_G3W_PREFIX_RE = re.compile(r"^\s*\[[gG]3[^\]]*\]\s*")
 
 # Broad homoglyph map (Latin-like)
 _CHAR_MAP = {
@@ -15,6 +17,13 @@ _CHAR_MAP = {
     "@": "a", "$": "s",
     "0": "o", "1": "i", "!": "i", "¡": "i", "|": "i",
     "£": "l", "ð": "d", "ɭ": "l",
+    "ı": "i",  # dotless i
+    "ɩ": "i",  # iota-like i
+    "ɐ": "a",  # turned a
+    "ʍ": "w",  # turned w
+    "đ": "d", "Đ": "d",
+    "ℓ": "l",
+    "ł": "l", "Ł": "l",  # stroke l does not decompose via NFKD
     # IPA / special latin letters that OCR sometimes emits
     # IMPORTANT: some of these are *not* matched by our final [a-z0-9]
     # regex later, so if we don't map them here they get dropped entirely
@@ -29,6 +38,8 @@ _CHAR_MAP = {
     "§": "s",
     "ß": "b",
     "™": "", "®": "", "©": "c",
+    "†": "i",  # dagger sometimes appears in OCR outputs
+    "‡": "i",  # double dagger -> i
     "°": "", "•": "", "·": "", "⋅": "",
     "—": "", "–": "", "-": "",
     "’": "", "'": "", "`": "",
@@ -83,6 +94,9 @@ _CHAR_MAP = {
     # latin variants
     "ø": "o", "Ø": "o",
 
+    # Polish letters that do NOT decompose into ASCII via NFKD
+    "ł": "l", "Ł": "l",
+
     # extra Cyrillic variants seen in your cases
     "ѵ": "w",   # izhitsa often used as w
     "Ѡ": "w", "ѡ": "w",
@@ -91,7 +105,7 @@ _CHAR_MAP = {
     "ᴀ": "a", "ʙ": "b", "ᴄ": "c", "ᴅ": "d", "ᴇ": "e", "ꜰ": "f",
     "ɢ": "g", "ʜ": "h", "ɪ": "i", "ᴊ": "j", "ᴋ": "k", "ʟ": "l",
     "ᴍ": "m", "ɴ": "n", "ᴏ": "o", "ᴘ": "p", "ʀ": "r", "ᴛ": "t",
-    "ᴜ": "u", "ᴠ": "v", "ᴡ": "w", "ʏ": "y", "ᴢ": "z",
+    "ᴜ": "u", "ᴠ": "v", "ᴡ": "w", "ʏ": "u", "ᴢ": "z",
 }
 
 def _strip_diacritics(s: str) -> str:
@@ -105,6 +119,14 @@ def canonical_key(raw: str) -> str:
     s = _G3W_PREFIX_RE.sub("", s)
     s = s.replace("≡", "三")
 
+    # Some fonts render the last "o" as sigma-like glyph (σ/ς). If the original
+    # nick ends with sigma, prefer ending "o" over "s".
+    sigma_end = False
+    if s:
+        last = s[-1]
+        if last in {"σ", "ς", "Σ"}:
+            sigma_end = True
+
     out = []
     for ch in s:
         out.append(_CHAR_MAP.get(ch, ch))
@@ -112,6 +134,8 @@ def canonical_key(raw: str) -> str:
 
     s = _strip_diacritics(s).lower()
     s = re.sub(r"[^a-z0-9]+", "", s)
+    if sigma_end and s.endswith("s"):
+        s = s[:-1] + "o"
     if s.endswith("tm"):
         s = s[:-2]
     return s

@@ -371,6 +371,24 @@ def _chat_needs_repair(players: Optional[List[PlayerScore]], expected_max_rank: 
         logger.debug("Chat repair: too many suspicious names (%d out of mx=%d)", suspicious, mx)
         return True
 
+    # Extra: duplicate names (by canonical key) are almost always a sign that
+    # one line got misread and copied into another. Prefer a cheap repair first.
+    canons: List[str] = []
+    for p in players:
+        try:
+            canons.append(canonical_key((p.name_norm or p.name_raw or "").strip()))
+        except Exception:
+            continue
+    canon_counts: Dict[str, int] = {}
+    for ck in canons:
+        if not ck:
+            continue
+        canon_counts[ck] = canon_counts.get(ck, 0) + 1
+    dups = [ck for ck, n in canon_counts.items() if n > 1]
+    if dups:
+        logger.debug("Chat repair: duplicate names detected (canons=%s)", dups[:6])
+        return True
+
     return False
 
 # --- Cheap repair for suspicious names (cost optimization) ---
@@ -380,6 +398,8 @@ def _chat_repair_details(players: Optional[List[PlayerScore]], expected_max_rank
     details = {
         "empty": False,
         "duplicate_ranks": False,
+        "duplicate_names": False,
+        "duplicate_name_ranks": [],
         "mx": None,
         "missing_ranks": [],
         "extra_ranks": [],
@@ -407,10 +427,38 @@ def _chat_repair_details(players: Optional[List[PlayerScore]], expected_max_rank
         details["missing_ranks"] = sorted(full - rset)
         details["extra_ranks"] = sorted(rset - full)
 
-    suspicious = []
+    # Track suspicious ranks from name heuristics
+    suspicious: List[int] = []
     for p in players:
-        if _is_suspicious_name(p.name_raw):
-            suspicious.append(int(p.rank))
+        try:
+            if _is_suspicious_name(p.name_raw):
+                suspicious.append(int(p.rank))
+        except Exception:
+            continue
+
+    # Track duplicate names (canonical key) and mark involved ranks as suspicious.
+    canon_to_ranks: Dict[str, List[int]] = {}
+    for p in players:
+        try:
+            r = int(p.rank)
+            if r <= 0:
+                continue
+            ck = canonical_key((p.name_norm or p.name_raw or "").strip())
+            if not ck:
+                continue
+            canon_to_ranks.setdefault(ck, []).append(r)
+        except Exception:
+            continue
+
+    dup_ranks: List[int] = []
+    for ck, rs in canon_to_ranks.items():
+        if len(rs) > 1:
+            dup_ranks.extend(rs)
+    if dup_ranks:
+        details["duplicate_names"] = True
+        details["duplicate_name_ranks"] = sorted(set(dup_ranks))
+        suspicious.extend(details["duplicate_name_ranks"])
+
     details["suspicious_ranks"] = sorted(set(suspicious))
     details["suspicious_count"] = len(details["suspicious_ranks"])
     return details
@@ -701,6 +749,112 @@ Zasady:
     return out
 
 
+def _merge_players_row_repair(
+    base: List[PlayerScore],
+    updates: List[PlayerScore],
+    *,
+    log_prefix: str = "Row-repair merge",
+) -> List[PlayerScore]:
+    """Safer merge used ONLY for targeted row-repair.
+
+    Goals:
+    - Preserve existing points when row-repair tries to change them.
+    - Avoid overwriting a rank with an update that duplicates another rank (same name + points).
+    - Prefer updates only when they materially improve the name (e.g. set name_norm).
+    """
+
+    def _name_key(p: PlayerScore) -> str:
+        if p.name_norm:
+            return p.name_norm.strip().lower()
+        return canonical_key(p.name_raw or "")
+
+    def _points(p: PlayerScore) -> Optional[int]:
+        try:
+            return int(p.points) if p.points is not None else None
+        except Exception:
+            return None
+
+    by_rank: Dict[int, PlayerScore] = {p.rank: p for p in base if isinstance(p.rank, int)}
+
+    sig_to_rank: Dict[Tuple[str, int], int] = {}
+    for r, p in by_rank.items():
+        nk = _name_key(p)
+        pts = _points(p)
+        if nk and pts is not None:
+            sig_to_rank[(nk, pts)] = r
+
+    for u in updates:
+        if not isinstance(u.rank, int):
+            continue
+        r = u.rank
+        cur = by_rank.get(r)
+
+        # Preserve points from the base when possible.
+        cur_pts = _points(cur) if cur else None
+        upd_pts = _points(u)
+        if cur_pts is not None:
+            if upd_pts is None:
+                u.points = cur_pts
+            elif upd_pts != cur_pts:
+                logger.debug(
+                    "%s: preserving points for rank=%s (%s -> %s)",
+                    log_prefix,
+                    r,
+                    upd_pts,
+                    cur_pts,
+                )
+                u.points = cur_pts
+
+        # Duplicate protection: do not allow (name,points) to appear on two ranks.
+        nk = _name_key(u) or (_name_key(cur) if cur else "")
+        pts = _points(u) if _points(u) is not None else cur_pts
+        if nk and pts is not None:
+            other = sig_to_rank.get((nk, pts))
+            if other is not None and other != r:
+                logger.debug(
+                    "%s: rejecting update for rank=%s -> duplicates rank=%s (name=%r points=%s)",
+                    log_prefix,
+                    r,
+                    other,
+                    nk,
+                    pts,
+                )
+                continue
+
+        # Decide whether the update is actually better.
+        def _is_better(cur_p: PlayerScore, upd_p: PlayerScore) -> bool:
+            if (cur_p.name_raw or "").strip().upper() == "UNKNOWN":
+                return True
+            if upd_p.name_norm and not cur_p.name_norm:
+                return True
+            if cur_p.name_norm and not upd_p.name_norm:
+                return False
+            if cur_p.name_norm and upd_p.name_norm and cur_p.name_norm.strip().lower() != upd_p.name_norm.strip().lower():
+                # Row-repair suggesting a different normalized name than we already have is risky.
+                return False
+            # Otherwise, prefer the one with a longer canonical key (more information).
+            cur_len = len(canonical_key(cur_p.name_raw or ""))
+            upd_len = len(canonical_key(upd_p.name_raw or ""))
+            return upd_len >= (cur_len + 1)
+
+        if cur is None:
+            by_rank[r] = u
+        else:
+            if _is_better(cur, u):
+                by_rank[r] = u
+            else:
+                continue
+
+        # Update sig map with the accepted value.
+        nk2 = _name_key(by_rank[r])
+        pts2 = _points(by_rank[r])
+        if nk2 and pts2 is not None:
+            sig_to_rank[(nk2, pts2)] = r
+
+    out = [by_rank[r] for r in sorted(by_rank.keys())]
+    return out
+
+
 def parse_war_from_images(
     images: List[bytes],
     model: str,
@@ -778,7 +932,7 @@ def parse_war_from_images(
                     suspicious_ranks=details["suspicious_ranks"],
                 )
                 if upd:
-                    players = _merge_players([players or [], upd])
+                    players = _merge_players_row_repair(players or [], upd, log_prefix="Row-repair(cheap)")
                     if not _chat_needs_repair(players, expected_max_rank):
                         logger.info("Cheap row-repair fixed chat -> skipping robust slicing")
 
@@ -855,7 +1009,7 @@ def parse_war_from_images(
                     suspicious_ranks=mismatch,
                 )
                 if upd2:
-                    players = _merge_players([players or [], upd2])
+                    players = _merge_players_row_repair(players or [], upd2, log_prefix="Row-repair(roster-mismatch)")
                     logger.info("Roster-mismatch row-repair merged -> %d players", len(players or []))
 
     # Fallback na war_mode: jeśli model pominął tryb na pełnym screenie, doczytaj z cropa

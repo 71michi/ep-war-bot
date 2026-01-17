@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>G3W War Dashboard</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 16px; background: #0f1115; color: #e7e7e7; }
+    h1 { margin: 0 0 10px; font-size: 20px; }
+    .muted { color: #a8b0bd; }
+    .card { background: #151a22; border: 1px solid #222a35; border-radius: 10px; padding: 12px; margin: 10px 0 16px; }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    select, input { background: #0f1115; color: #e7e7e7; border: 1px solid #2a3443; border-radius: 8px; padding: 6px 8px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border-bottom: 1px solid #222a35; padding: 8px 6px; vertical-align: top; }
+    th { text-align: left; color: #c9d2e0; font-weight: 600; }
+    tr:hover td { background: rgba(255,255,255,0.02); }
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; border: 1px solid #2a3443; font-size: 12px; }
+    .ok { border-color: rgba(46, 204, 113, 0.6); }
+    .bad { border-color: rgba(231, 76, 60, 0.6); }
+    .warn { border-color: rgba(241, 196, 15, 0.7); }
+    details > summary { cursor: pointer; }
+    pre { background: #0f1115; border: 1px solid #2a3443; border-radius: 10px; padding: 10px; overflow: auto; }
+    .small { font-size: 12px; }
+    .right { text-align: right; }
+  </style>
+</head>
+<body>
+  <h1>G3W War Dashboard</h1>
+  <div class="muted small">Lista wojen jest budowana z wyników <b>zatwierdzonych</b> komendą <code>ADDWAR</code> (po <code>LISTWAR</code> + ewentualnych poprawkach) na Discordzie.</div>
+
+  <div class="card">
+    <div class="row">
+      <div><b>Średnia graczy</b></div>
+      <div class="muted">z ostatnich</div>
+      <select id="avgX"></select>
+      <div class="muted">wojen</div>
+    </div>
+    <div style="overflow:auto; margin-top:10px;">
+      <table id="rosterTable">
+        <thead>
+          <tr>
+            <th>Nick (roster)</th>
+            <th class="right">Średnia</th>
+            <th class="right">Suma</th>
+            <th class="right">Wojen z pkt</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between;">
+      <div><b>Wojny</b></div>
+      <div class="muted" id="warsCount">Ładowanie…</div>
+    </div>
+    <div style="overflow:auto; margin-top:10px;">
+      <table id="warsTable">
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>ID</th>
+            <th>Wynik</th>
+            <th class="right">Różnica</th>
+            <th>Tryb</th>
+            <th class="right">Nasze</th>
+            <th class="right">Ich</th>
+            <th class="right">Unknown</th>
+            <th class="right">Poza rosterem</th>
+            <th>Szczegóły</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+<script>
+  const fmtDate = (ts) => {
+    try {
+      const d = new Date(ts * 1000);
+      return d.toLocaleString('pl-PL');
+    } catch (e) { return String(ts); }
+  };
+
+  function escapeHtml(s) {
+    return String(s)
+      .replaceAll('&','&amp;')
+      .replaceAll('<','&lt;')
+      .replaceAll('>','&gt;')
+      .replaceAll('"','&quot;')
+      .replaceAll("'",'&#39;');
+  }
+
+  async function loadAll() {
+    const [warsResp, rosterResp] = await Promise.all([
+      fetch('/api/wars'),
+      fetch('/api/roster')
+    ]);
+    const warsData = await warsResp.json();
+    const rosterData = await rosterResp.json();
+    const wars = Array.isArray(warsData) ? warsData : (warsData.wars || []);
+    const roster = Array.isArray(rosterData) ? rosterData : (rosterData.roster || []);
+    renderWars(wars);
+    renderRosterAverages(wars, roster);
+  }
+
+  function renderWars(wars) {
+    const tbody = document.querySelector('#warsTable tbody');
+    tbody.innerHTML = '';
+
+    document.getElementById('warsCount').textContent = `Wszystkich wojen: ${wars.length}`;
+
+    for (const w of wars) {
+      const res = w.result || '';
+      const isWin = /zwyci/i.test(res);
+      const pillClass = isWin ? 'ok' : 'bad';
+      const diff = Number(w.diff || 0);
+      const unknownN = Number(w.unknown_count || 0);
+      const oorN = Number(w.out_of_roster_count || 0);
+
+      const detailsLines = (w.players || []).map(p => {
+        const status = p.status || 'ok';
+        let note = '';
+        if (status === 'unknown') note = ' (UNKNOWN)';
+        else if (status === 'out_of_roster') note = ' (poza rosterem)';
+        return `[${String(p.rank).padStart(2,'0')}] ${p.name} — ${p.points}${note}`;
+      }).join('\n');
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${escapeHtml(fmtDate(w.created_at_ts || w.updated_at_ts || 0))}</td>
+        <td><span class="pill">${escapeHtml(w.war_id || '')}</span></td>
+        <td><span class="pill ${pillClass}">${escapeHtml(res)}</span></td>
+        <td class="right">${escapeHtml((diff >= 0 ? '+' : '') + diff)}</td>
+        <td>${escapeHtml(w.mode || '')}</td>
+        <td class="right">${escapeHtml(w.our_score ?? '')}</td>
+        <td class="right">${escapeHtml((w.opponent_score ?? w.enemy_score ?? '') + '')}</td>
+        <td class="right">${unknownN ? `<span class="pill warn">${unknownN}</span>` : '0'}</td>
+        <td class="right">${oorN ? `<span class="pill warn">${oorN}</span>` : '0'}</td>
+        <td>
+          <details>
+            <summary class="muted">pokaż</summary>
+            <pre class="small">${escapeHtml(detailsLines || '')}</pre>
+          </details>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    }
+  }
+
+  function renderRosterAverages(wars, roster) {
+    const sel = document.getElementById('avgX');
+    const n = wars.length;
+    sel.innerHTML = '';
+    const max = Math.max(1, n);
+    for (let i=1; i<=max; i++) {
+      const opt = document.createElement('option');
+      opt.value = String(i);
+      opt.textContent = String(i);
+      sel.appendChild(opt);
+    }
+    sel.value = String(Math.min(5, max));
+
+    const render = () => {
+      const x = Number(sel.value || 1);
+      const slice = wars.slice(0, x); // wars are newest-first
+
+      const pointsByName = new Map();
+      for (const name of roster) {
+        pointsByName.set(name, []);
+      }
+
+      for (const w of slice) {
+        const map = new Map();
+        for (const p of (w.players || [])) {
+          map.set(p.name, Number(p.points || 0));
+        }
+        for (const name of roster) {
+          const pts = map.get(name) || 0;
+          pointsByName.get(name).push(pts);
+        }
+      }
+
+      const rows = roster.map(name => {
+        const arr = pointsByName.get(name) || [];
+        const sum = arr.reduce((a,b)=>a+b,0);
+        const avg = arr.length ? (sum / arr.length) : 0;
+        const warsWithPts = arr.filter(v => v > 0).length;
+        return { name, avg, sum, warsWithPts };
+      }).sort((a,b)=> b.avg - a.avg);
+
+      const tbody = document.querySelector('#rosterTable tbody');
+      tbody.innerHTML = '';
+      for (const r of rows) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${escapeHtml(r.name)}</td>
+          <td class="right">${r.avg.toFixed(1)}</td>
+          <td class="right">${r.sum}</td>
+          <td class="right">${r.warsWithPts}/${x}</td>
+        `;
+        tbody.appendChild(tr);
+      }
+    };
+
+    sel.onchange = render;
+    render();
+  }
+
+  loadAll().catch(err => {
+    console.error(err);
+    document.getElementById('warsCount').textContent = 'Błąd ładowania danych.';
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,1139 @@
+2026-01-16 22:56:15,226 DEBUG [-] warbot: Roster resolver: rank=1 raw='[g3w] LoRdZik' cleaned='LoRdZik' canonical='lordzik' model_norm='LoRdZik'
+2026-01-16 22:56:15,227 DEBUG [-] warbot:   candidate via model_norm: LoRdZik score=1000
+2026-01-16 22:56:15,228 DEBUG [-] warbot:   candidate via exact(cleaned): LoRdZik score=925
+2026-01-16 22:56:15,229 DEBUG [-] warbot:   fuzzy canonical variants: ['jordzih', 'jordzik', 'lordzih', 'lordzik', 'rordzik']
+2026-01-16 22:56:15,230 DEBUG [-] warbot:   candidate via fuzzy: LoRdZik score=102.0
+2026-01-16 22:56:15,230 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'LoRdZik')]
+2026-01-16 22:56:15,230 DEBUG [-] warbot: Roster resolver: rank=2 raw='[g3w] Blacksmith' cleaned='Blacksmith' canonical='blacksmith' model_norm='Blacksmith'
+2026-01-16 22:56:15,230 DEBUG [-] warbot:   candidate via model_norm: Blacksmith score=1000
+2026-01-16 22:56:15,230 DEBUG [-] warbot:   candidate via exact(cleaned): Blacksmith score=925
+2026-01-16 22:56:15,230 DEBUG [-] warbot:   fuzzy canonical variants: ['blachsmith', 'blacksmith', 'blacksmitk']
+2026-01-16 22:56:15,231 DEBUG [-] warbot:   candidate via fuzzy: Blacksmith score=102.0
+2026-01-16 22:56:15,231 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Blacksmith')]
+2026-01-16 22:56:15,231 DEBUG [-] warbot: Roster resolver: rank=3 raw='[g3w] laaσ' cleaned='laaσ' canonical='laao' model_norm=None
+2026-01-16 22:56:15,231 DEBUG [-] warbot:   candidate via alias: raw='[g3w] laaσ' -> 'Jaro' -> Jaro score=950
+2026-01-16 22:56:15,231 DEBUG [-] warbot:   fuzzy canonical variants: ['jaao', 'jaas', 'jao', 'jaro', 'jars', 'laao', 'laas', 'lao', 'las', 'raao', 'raro']
+2026-01-16 22:56:15,232 DEBUG [-] warbot:   candidate via fuzzy: Jaro score=102.0
+2026-01-16 22:56:15,232 DEBUG [-] warbot:   candidates sorted: [(950.0, 'Jaro')]
+2026-01-16 22:56:15,232 DEBUG [-] warbot: Roster resolver: rank=4 raw='Bamber' cleaned='Bamber' canonical='bamber' model_norm='Bamber'
+2026-01-16 22:56:15,232 DEBUG [-] warbot:   candidate via model_norm: Bamber score=1000
+2026-01-16 22:56:15,233 DEBUG [-] warbot:   candidate via exact(cleaned): Bamber score=925
+2026-01-16 22:56:15,233 DEBUG [-] warbot:   fuzzy canonical variants: ['bamber']
+2026-01-16 22:56:15,233 DEBUG [-] warbot:   candidate via fuzzy: Bamber score=102.0
+2026-01-16 22:56:15,233 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Bamber')]
+2026-01-16 22:56:15,233 DEBUG [-] warbot: Roster resolver: rank=5 raw='ßuśh22' cleaned='ßuśh22' canonical='bush22' model_norm='Bush22'
+2026-01-16 22:56:15,233 DEBUG [-] warbot:   candidate via model_norm: Bush22 score=1000
+2026-01-16 22:56:15,233 DEBUG [-] warbot:   candidate via alias: raw='ßuśh22' -> 'Bush22' -> Bush22 score=950
+2026-01-16 22:56:15,233 DEBUG [-] warbot:   fuzzy canonical variants: ['bush2', 'bush22', 'busk2', 'busk22']
+2026-01-16 22:56:15,234 DEBUG [-] warbot:   candidate via fuzzy: Bush22 score=102.0
+2026-01-16 22:56:15,234 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Bush22')]
+2026-01-16 22:56:15,234 DEBUG [-] warbot: Roster resolver: rank=6 raw='[g3w] NVRNV' cleaned='NVRNV' canonical='nvrnv' model_norm='NVRNV'
+2026-01-16 22:56:15,234 DEBUG [-] warbot:   candidate via model_norm: NVRNV score=1000
+2026-01-16 22:56:15,234 DEBUG [-] warbot:   candidate via exact(cleaned): NVRNV score=925
+2026-01-16 22:56:15,234 DEBUG [-] warbot:   fuzzy canonical variants: ['nnrnn', 'nrn', 'nvrnv', 'vrv', 'vvrvv']
+2026-01-16 22:56:15,234 DEBUG [-] warbot:   candidate via fuzzy: NVRNV score=102.0
+2026-01-16 22:56:15,235 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'NVRNV')]
+2026-01-16 22:56:15,235 DEBUG [-] warbot: Roster resolver: rank=7 raw='[g3w] ⧗Zɐʍ†$z@ ⧗' cleaned='⧗Zɐʍ†$z@ ⧗' canonical='zawisza' model_norm=None
+2026-01-16 22:56:15,235 DEBUG [-] warbot:   fuzzy canonical variants: ['zawisza', 'zawiszi', 'ziwisza', 'ziwiszi']
+2026-01-16 22:56:15,235 DEBUG [-] warbot:   candidate via fuzzy: Zawisza score=102.0
+2026-01-16 22:56:15,236 DEBUG [-] warbot:   candidates sorted: [(102.0, 'Zawisza')]
+2026-01-16 22:56:15,236 DEBUG [-] warbot: Roster resolver: rank=8 raw='Malef' cleaned='Malef' canonical='malef' model_norm='Malef'
+2026-01-16 22:56:15,236 DEBUG [-] warbot:   candidate via model_norm: Malef score=1000
+2026-01-16 22:56:15,236 DEBUG [-] warbot:   candidate via exact(cleaned): Malef score=925
+2026-01-16 22:56:15,236 DEBUG [-] warbot:   fuzzy canonical variants: ['malef']
+2026-01-16 22:56:15,236 DEBUG [-] warbot:   candidate via fuzzy: Malef score=102.0
+2026-01-16 22:56:15,236 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Malef')]
+2026-01-16 22:56:15,236 DEBUG [-] warbot: Roster resolver: rank=9 raw='[g3w] czyro' cleaned='czyro' canonical='czyro' model_norm='czyro'
+2026-01-16 22:56:15,236 DEBUG [-] warbot:   candidate via model_norm: czyro score=1000
+2026-01-16 22:56:15,236 DEBUG [-] warbot:   candidate via exact(cleaned): czyro score=925
+2026-01-16 22:56:15,237 DEBUG [-] warbot:   fuzzy canonical variants: ['czyro', 'czyrs']
+2026-01-16 22:56:15,237 DEBUG [-] warbot:   candidate via fuzzy: czyro score=102.0
+2026-01-16 22:56:15,237 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'czyro')]
+2026-01-16 22:56:15,237 DEBUG [-] warbot: Roster resolver: rank=10 raw='[g3w] ropuch13' cleaned='ropuch13' canonical='ropuchi3' model_norm='ropuch13'
+2026-01-16 22:56:15,237 DEBUG [-] warbot:   candidate via model_norm: ropuch13 score=1000
+2026-01-16 22:56:15,237 DEBUG [-] warbot:   candidate via exact(cleaned): ropuch13 score=925
+2026-01-16 22:56:15,237 DEBUG [-] warbot:   fuzzy canonical variants: ['jopuchi3', 'jopucki3', 'ropuchi3', 'ropucki3']
+2026-01-16 22:56:15,238 DEBUG [-] warbot:   candidate via fuzzy: ropuch13 score=102.0
+2026-01-16 22:56:15,238 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'ropuch13')]
+2026-01-16 22:56:15,238 DEBUG [-] warbot: Roster resolver: rank=11 raw='[g3w] Michi' cleaned='Michi' canonical='michi' model_norm='Michi'
+2026-01-16 22:56:15,238 DEBUG [-] warbot:   candidate via model_norm: Michi score=1000
+2026-01-16 22:56:15,238 DEBUG [-] warbot:   candidate via exact(cleaned): Michi score=925
+2026-01-16 22:56:15,238 DEBUG [-] warbot:   fuzzy canonical variants: ['micha', 'michi', 'micka', 'micki']
+2026-01-16 22:56:15,238 DEBUG [-] warbot:   candidate via fuzzy: Michi score=102.0
+2026-01-16 22:56:15,239 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Michi')]
+2026-01-16 22:56:15,239 DEBUG [-] warbot: Roster resolver: rank=12 raw='[g3w] ɹegendarny' cleaned='ɹegendarny' canonical='regendarny' model_norm=None
+2026-01-16 22:56:15,239 DEBUG [-] warbot:   fuzzy canonical variants: ['jegendarny', 'jegevdarvy', 'legendarny', 'legevdarvy', 'regendarny', 'regevdarvy']
+2026-01-16 22:56:15,239 DEBUG [-] warbot:   candidate via fuzzy: Legendarny score=102.0
+2026-01-16 22:56:15,240 DEBUG [-] warbot:   candidates sorted: [(102.0, 'Legendarny')]
+2026-01-16 22:56:15,240 DEBUG [-] warbot: Roster resolver: rank=13 raw='[g3w] Geterus' cleaned='Geterus' canonical='geterus' model_norm='Geterus'
+2026-01-16 22:56:15,240 DEBUG [-] warbot:   candidate via model_norm: Geterus score=1000
+2026-01-16 22:56:15,240 DEBUG [-] warbot:   candidate via exact(cleaned): Geterus score=925
+2026-01-16 22:56:15,240 DEBUG [-] warbot:   fuzzy canonical variants: ['geteruo', 'geterus', 'weteruo', 'weterus']
+2026-01-16 22:56:15,241 DEBUG [-] warbot:   candidate via fuzzy: Geterus score=102.0
+2026-01-16 22:56:15,241 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Geterus')]
+2026-01-16 22:56:15,241 DEBUG [-] warbot: Roster resolver: rank=14 raw='[g3w] ★Quaster★' cleaned='★Quaster★' canonical='quaster' model_norm='Quaster'
+2026-01-16 22:56:15,241 DEBUG [-] warbot:   candidate via model_norm: Quaster score=1000
+2026-01-16 22:56:15,241 DEBUG [-] warbot:   fuzzy canonical variants: ['quaster']
+2026-01-16 22:56:15,241 DEBUG [-] warbot:   candidate via fuzzy: Quaster score=102.0
+2026-01-16 22:56:15,241 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Quaster')]
+2026-01-16 22:56:15,242 DEBUG [-] warbot: Roster resolver: rank=15 raw='[g3w] Gustaw jeleń' cleaned='Gustaw jeleń' canonical='gustawjelen' model_norm='Gustaw jeleń'
+2026-01-16 22:56:15,242 DEBUG [-] warbot:   candidate via model_norm: Gustaw jeleń score=1000
+2026-01-16 22:56:15,242 DEBUG [-] warbot:   candidate via exact(cleaned): Gustaw jeleń score=925
+2026-01-16 22:56:15,242 DEBUG [-] warbot:   fuzzy canonical variants: ['gustawjelen', 'gustawjelev', 'gustiwjelen', 'gustiwjelev', 'wustawjelen', 'wustawjelev', 'wustiwjelen']
+2026-01-16 22:56:15,243 DEBUG [-] warbot:   candidate via fuzzy: Gustaw jeleń score=102.0
+2026-01-16 22:56:15,244 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Gustaw jeleń')]
+2026-01-16 22:56:15,244 DEBUG [-] warbot: Roster resolver: rank=16 raw='[g3w] madevil' cleaned='madevil' canonical='madevil' model_norm='madevil'
+2026-01-16 22:56:15,244 DEBUG [-] warbot:   candidate via model_norm: Madevil score=1000
+2026-01-16 22:56:15,244 DEBUG [-] warbot:   candidate via exact(cleaned): Madevil score=925
+2026-01-16 22:56:15,244 DEBUG [-] warbot:   fuzzy canonical variants: ['madenil', 'madevil']
+2026-01-16 22:56:15,244 DEBUG [-] warbot:   candidate via fuzzy: Madevil score=102.0
+2026-01-16 22:56:15,244 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Madevil')]
+2026-01-16 22:56:15,245 DEBUG [-] warbot: Roster resolver: rank=17 raw='[g3w] Zise' cleaned='Zise' canonical='zise' model_norm='Zise'
+2026-01-16 22:56:15,245 DEBUG [-] warbot:   candidate via model_norm: Zise score=1000
+2026-01-16 22:56:15,245 DEBUG [-] warbot:   candidate via exact(cleaned): Zise score=925
+2026-01-16 22:56:15,245 DEBUG [-] warbot:   fuzzy canonical variants: ['zise']
+2026-01-16 22:56:15,245 DEBUG [-] warbot:   candidate via fuzzy: Zise score=102.0
+2026-01-16 22:56:15,245 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Zise')]
+2026-01-16 22:56:15,245 DEBUG [-] warbot: Roster resolver: rank=18 raw='[g3w] Laluś' cleaned='Laluś' canonical='lalus' model_norm='Laluś'
+2026-01-16 22:56:15,245 DEBUG [-] warbot:   candidate via model_norm: Laluś score=1000
+2026-01-16 22:56:15,245 DEBUG [-] warbot:   candidate via exact(cleaned): Laluś score=925
+2026-01-16 22:56:15,245 DEBUG [-] warbot:   fuzzy canonical variants: ['jaluo', 'jalus', 'laluo', 'lalus', 'ralus']
+2026-01-16 22:56:15,246 DEBUG [-] warbot:   candidate via fuzzy: Laluś score=102.0
+2026-01-16 22:56:15,246 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Laluś')]
+2026-01-16 22:56:15,246 DEBUG [-] warbot: Roster resolver: rank=19 raw='[g3w] waśki' cleaned='waśki' canonical='waski' model_norm=None
+2026-01-16 22:56:15,246 DEBUG [-] warbot:   fuzzy canonical variants: ['gashi', 'gaska', 'gaski', 'washa', 'washi', 'waska', 'waski']
+2026-01-16 22:56:15,247 DEBUG [-] warbot:   candidate via fuzzy: Washi score=102.0
+2026-01-16 22:56:15,247 DEBUG [-] warbot:   candidate via fuzzy: Waśka score=100.0
+2026-01-16 22:56:15,247 DEBUG [-] warbot:   candidates sorted: [(102.0, 'Washi'), (100.0, 'Waśka')]
+2026-01-16 22:56:15,247 DEBUG [-] warbot: Roster resolver: rank=20 raw='[g3w] Stachu' cleaned='Stachu' canonical='stachu' model_norm='Stachu'
+2026-01-16 22:56:15,247 DEBUG [-] warbot:   candidate via model_norm: Stachu score=1000
+2026-01-16 22:56:15,247 DEBUG [-] warbot:   candidate via exact(cleaned): Stachu score=925
+2026-01-16 22:56:15,247 DEBUG [-] warbot:   fuzzy canonical variants: ['stachu', 'stacku']
+2026-01-16 22:56:15,248 DEBUG [-] warbot:   candidate via fuzzy: Stachu score=102.0
+2026-01-16 22:56:15,248 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Stachu')]
+2026-01-16 22:56:15,248 DEBUG [-] warbot: Roster resolver: rank=21 raw='[g3w] Leon' cleaned='Leon' canonical='leon' model_norm='Leon'
+2026-01-16 22:56:15,248 DEBUG [-] warbot:   candidate via model_norm: Leon score=1000
+2026-01-16 22:56:15,248 DEBUG [-] warbot:   candidate via exact(cleaned): Leon score=925
+2026-01-16 22:56:15,248 DEBUG [-] warbot:   fuzzy canonical variants: ['jeon', 'jeov', 'leon', 'leov', 'reon']
+2026-01-16 22:56:15,248 DEBUG [-] warbot:   candidate via fuzzy: Leon score=102.0
+2026-01-16 22:56:15,249 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Leon')]
+2026-01-16 22:56:15,249 DEBUG [-] warbot: Roster resolver: rank=22 raw='[g3w] Waśka' cleaned='Waśka' canonical='waska' model_norm='Waśka'
+2026-01-16 22:56:15,249 DEBUG [-] warbot:   candidate via model_norm: Waśka score=1000
+2026-01-16 22:56:15,249 DEBUG [-] warbot:   candidate via exact(cleaned): Waśka score=925
+2026-01-16 22:56:15,249 DEBUG [-] warbot:   fuzzy canonical variants: ['gasha', 'gaska', 'gaski', 'washa', 'washi', 'waska', 'waski']
+2026-01-16 22:56:15,250 DEBUG [-] warbot:   candidate via fuzzy: Washi score=100.0
+2026-01-16 22:56:15,250 DEBUG [-] warbot:   candidate via fuzzy: Waśka score=102.0
+2026-01-16 22:56:15,250 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Waśka'), (100.0, 'Washi')]
+2026-01-16 22:56:15,250 DEBUG [-] warbot: Roster resolver: rank=23 raw='[g3w] max72' cleaned='max72' canonical='max72' model_norm='max72'
+2026-01-16 22:56:15,250 DEBUG [-] warbot:   candidate via model_norm: max72 score=1000
+2026-01-16 22:56:15,250 DEBUG [-] warbot:   candidate via exact(cleaned): max72 score=925
+2026-01-16 22:56:15,250 DEBUG [-] warbot:   fuzzy canonical variants: ['max72']
+2026-01-16 22:56:15,250 DEBUG [-] warbot:   candidate via fuzzy: max72 score=102.0
+2026-01-16 22:56:15,250 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'max72')]
+2026-01-16 22:56:15,250 DEBUG [-] warbot: Roster resolver: rank=24 raw='[g3w] Tołek' cleaned='Tołek' canonical='tolek' model_norm='Tolek'
+2026-01-16 22:56:15,250 DEBUG [-] warbot:   candidate via model_norm: Tolek score=1000
+2026-01-16 22:56:15,250 DEBUG [-] warbot:   fuzzy canonical variants: ['toleh', 'tolek']
+2026-01-16 22:56:15,251 DEBUG [-] warbot:   candidate via fuzzy: Tolek score=102.0
+2026-01-16 22:56:15,251 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Tolek')]
+2026-01-16 22:56:15,251 DEBUG [-] warbot: Roster resolver: rank=25 raw='Zgredek' cleaned='Zgredek' canonical='zgredek' model_norm='Zgredek'
+2026-01-16 22:56:15,251 DEBUG [-] warbot:   candidate via model_norm: Zgredek score=1000
+2026-01-16 22:56:15,251 DEBUG [-] warbot:   candidate via exact(cleaned): Zgredek score=925
+2026-01-16 22:56:15,251 DEBUG [-] warbot:   fuzzy canonical variants: ['zgredeh', 'zgredek']
+2026-01-16 22:56:15,251 DEBUG [-] warbot:   candidate via fuzzy: Zgredek score=102.0
+2026-01-16 22:56:15,251 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Zgredek')]
+2026-01-16 22:56:15,252 DEBUG [-] warbot: Roster resolver: rank=26 raw='[g3w] Bo100n' cleaned='Bo100n' canonical='boioon' model_norm='Bo100n'
+2026-01-16 22:56:15,252 DEBUG [-] warbot:   candidate via model_norm: Bo100n score=1000
+2026-01-16 22:56:15,252 DEBUG [-] warbot:   candidate via exact(cleaned): Bo100n score=925
+2026-01-16 22:56:15,252 DEBUG [-] warbot:   fuzzy canonical variants: ['boion', 'boioon', 'boioov', 'boiov']
+2026-01-16 22:56:15,252 DEBUG [-] warbot:   candidate via fuzzy: Bo100n score=102.0
+2026-01-16 22:56:15,252 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Bo100n')]
+2026-01-16 22:56:15,252 DEBUG [-] warbot: Roster resolver: rank=27 raw='[g3w] NoMercy' cleaned='NoMercy' canonical='nomercy' model_norm='NoMercy'
+2026-01-16 22:56:15,252 DEBUG [-] warbot:   candidate via model_norm: NoMercy score=1000
+2026-01-16 22:56:15,252 DEBUG [-] warbot:   candidate via exact(cleaned): NoMercy score=925
+2026-01-16 22:56:15,253 DEBUG [-] warbot:   fuzzy canonical variants: ['nomercy', 'vomercy']
+2026-01-16 22:56:15,253 DEBUG [-] warbot:   candidate via fuzzy: NoMercy score=102.0
+2026-01-16 22:56:15,253 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'NoMercy')]
+2026-01-16 22:56:15,253 DEBUG [-] warbot: Roster resolver: rank=28 raw='[g3w] grubson87®' cleaned='grubson87®' canonical='grubson87' model_norm='grubson87®'
+2026-01-16 22:56:15,253 DEBUG [-] warbot:   candidate via model_norm: grubson87® score=1000
+2026-01-16 22:56:15,253 DEBUG [-] warbot:   candidate via exact(cleaned): grubson87® score=925
+2026-01-16 22:56:15,253 DEBUG [-] warbot:   fuzzy canonical variants: ['grubson87', 'grubsov87', 'wrubson87', 'wrubsov87']
+2026-01-16 22:56:15,254 DEBUG [-] warbot:   candidate via fuzzy: grubson87® score=102.0
+2026-01-16 22:56:15,254 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'grubson87®')]
+2026-01-16 22:56:15,254 DEBUG [-] warbot: Roster resolver: rank=29 raw='[g3w] Thèviè' cleaned='Thèviè' canonical='thevie' model_norm=None
+2026-01-16 22:56:15,254 DEBUG [-] warbot:   fuzzy canonical variants: ['thenie', 'thevie', 'tkenie', 'tkevie']
+2026-01-16 22:56:15,254 DEBUG [-] warbot:   candidate via fuzzy: Thevil score=90.9
+2026-01-16 22:56:15,254 DEBUG [-] warbot:   candidates sorted: [(90.9090909090909, 'Thevil')]
+2026-01-16 22:56:15,255 DEBUG [-] warbot: Pre-assign exact-case: rank 1 cleaned='LoRdZik' -> LoRdZik
+2026-01-16 22:56:15,255 DEBUG [-] warbot: Pre-assign exact-case: rank 2 cleaned='Blacksmith' -> Blacksmith
+2026-01-16 22:56:15,255 DEBUG [-] warbot: Pre-assign exact-case: rank 4 cleaned='Bamber' -> Bamber
+2026-01-16 22:56:15,255 DEBUG [-] warbot: Pre-assign exact-case: rank 6 cleaned='NVRNV' -> NVRNV
+2026-01-16 22:56:15,255 DEBUG [-] warbot: Pre-assign exact-case: rank 8 cleaned='Malef' -> Malef
+2026-01-16 22:56:15,255 DEBUG [-] warbot: Pre-assign exact-case: rank 9 cleaned='czyro' -> czyro
+2026-01-16 22:56:15,255 DEBUG [-] warbot: Pre-assign exact-case: rank 10 cleaned='ropuch13' -> ropuch13
+2026-01-16 22:56:15,255 DEBUG [-] warbot: Pre-assign exact-case: rank 11 cleaned='Michi' -> Michi
+2026-01-16 22:56:15,255 DEBUG [-] warbot: Pre-assign exact-case: rank 13 cleaned='Geterus' -> Geterus
+2026-01-16 22:56:15,255 DEBUG [-] warbot: Pre-assign exact-case: rank 15 cleaned='Gustaw jeleń' -> Gustaw jeleń
+2026-01-16 22:56:15,255 DEBUG [-] warbot: Pre-assign exact-case: rank 17 cleaned='Zise' -> Zise
+2026-01-16 22:56:15,255 DEBUG [-] warbot: Pre-assign exact-case: rank 18 cleaned='Laluś' -> Laluś
+2026-01-16 22:56:15,255 DEBUG [-] warbot: Pre-assign exact-case: rank 20 cleaned='Stachu' -> Stachu
+2026-01-16 22:56:15,255 DEBUG [-] warbot: Pre-assign exact-case: rank 21 cleaned='Leon' -> Leon
+2026-01-16 22:56:15,255 DEBUG [-] warbot: Pre-assign exact-case: rank 22 cleaned='Waśka' -> Waśka
+2026-01-16 22:56:15,255 DEBUG [-] warbot: Pre-assign exact-case: rank 23 cleaned='max72' -> max72
+2026-01-16 22:56:15,255 DEBUG [-] warbot: Pre-assign exact-case: rank 25 cleaned='Zgredek' -> Zgredek
+2026-01-16 22:56:15,255 DEBUG [-] warbot: Pre-assign exact-case: rank 26 cleaned='Bo100n' -> Bo100n
+2026-01-16 22:56:15,255 DEBUG [-] warbot: Pre-assign exact-case: rank 27 cleaned='NoMercy' -> NoMercy
+2026-01-16 22:56:15,256 DEBUG [-] warbot: Pre-assign exact-case: rank 28 cleaned='grubson87®' -> grubson87®
+2026-01-16 22:56:15,256 DEBUG [-] warbot: Assign pass: best_rank=5 candidate=Bush22 score=1000.0
+2026-01-16 22:56:15,256 DEBUG [-] warbot:   assigned rank 5 -> Bush22
+2026-01-16 22:56:15,256 DEBUG [-] warbot: Assign pass: best_rank=14 candidate=Quaster score=1000.0
+2026-01-16 22:56:15,256 DEBUG [-] warbot:   assigned rank 14 -> Quaster
+2026-01-16 22:56:15,256 DEBUG [-] warbot: Assign pass: best_rank=16 candidate=Madevil score=1000.0
+2026-01-16 22:56:15,256 DEBUG [-] warbot:   assigned rank 16 -> Madevil
+2026-01-16 22:56:15,256 DEBUG [-] warbot: Assign pass: best_rank=24 candidate=Tolek score=1000.0
+2026-01-16 22:56:15,256 DEBUG [-] warbot:   assigned rank 24 -> Tolek
+2026-01-16 22:56:15,256 DEBUG [-] warbot: Assign pass: best_rank=3 candidate=Jaro score=950.0
+2026-01-16 22:56:15,256 DEBUG [-] warbot:   assigned rank 3 -> Jaro
+2026-01-16 22:56:15,256 DEBUG [-] warbot: Assign pass: best_rank=7 candidate=Zawisza score=102.0
+2026-01-16 22:56:15,256 DEBUG [-] warbot:   assigned rank 7 -> Zawisza
+2026-01-16 22:56:15,256 DEBUG [-] warbot: Assign pass: best_rank=12 candidate=Legendarny score=102.0
+2026-01-16 22:56:15,256 DEBUG [-] warbot:   assigned rank 12 -> Legendarny
+2026-01-16 22:56:15,256 DEBUG [-] warbot: Assign pass: best_rank=19 candidate=Washi score=102.0
+2026-01-16 22:56:15,256 DEBUG [-] warbot:   assigned rank 19 -> Washi
+2026-01-16 22:56:15,256 DEBUG [-] warbot: Assign pass: best_rank=29 candidate=Thevil score=90.9
+2026-01-16 22:56:15,256 DEBUG [-] warbot:   assigned rank 29 -> Thevil
+2026-01-16 22:56:15,256 DEBUG [-] warbot: Final roster mapping: rank 1 raw='[g3w] LoRdZik' -> LoRdZik
+2026-01-16 22:56:15,256 DEBUG [-] warbot: Final roster mapping: rank 2 raw='[g3w] Blacksmith' -> Blacksmith
+2026-01-16 22:56:15,257 DEBUG [-] warbot: Final roster mapping: rank 3 raw='[g3w] laaσ' -> Jaro
+2026-01-16 22:56:15,257 DEBUG [-] warbot: Final roster mapping: rank 4 raw='Bamber' -> Bamber
+2026-01-16 22:56:15,257 DEBUG [-] warbot: Final roster mapping: rank 5 raw='ßuśh22' -> Bush22
+2026-01-16 22:56:15,257 DEBUG [-] warbot: Final roster mapping: rank 6 raw='[g3w] NVRNV' -> NVRNV
+2026-01-16 22:56:15,257 DEBUG [-] warbot: Final roster mapping: rank 7 raw='[g3w] ⧗Zɐʍ†$z@ ⧗' -> Zawisza
+2026-01-16 22:56:15,257 DEBUG [-] warbot: Final roster mapping: rank 8 raw='Malef' -> Malef
+2026-01-16 22:56:15,257 DEBUG [-] warbot: Final roster mapping: rank 9 raw='[g3w] czyro' -> czyro
+2026-01-16 22:56:15,257 DEBUG [-] warbot: Final roster mapping: rank 10 raw='[g3w] ropuch13' -> ropuch13
+2026-01-16 22:56:15,257 DEBUG [-] warbot: Final roster mapping: rank 11 raw='[g3w] Michi' -> Michi
+2026-01-16 22:56:15,257 DEBUG [-] warbot: Final roster mapping: rank 12 raw='[g3w] ɹegendarny' -> Legendarny
+2026-01-16 22:56:15,257 DEBUG [-] warbot: Final roster mapping: rank 13 raw='[g3w] Geterus' -> Geterus
+2026-01-16 22:56:15,257 DEBUG [-] warbot: Final roster mapping: rank 14 raw='[g3w] ★Quaster★' -> Quaster
+2026-01-16 22:56:15,257 DEBUG [-] warbot: Final roster mapping: rank 15 raw='[g3w] Gustaw jeleń' -> Gustaw jeleń
+2026-01-16 22:56:15,257 DEBUG [-] warbot: Final roster mapping: rank 16 raw='[g3w] madevil' -> Madevil
+2026-01-16 22:56:15,257 DEBUG [-] warbot: Final roster mapping: rank 17 raw='[g3w] Zise' -> Zise
+2026-01-16 22:56:15,257 DEBUG [-] warbot: Final roster mapping: rank 18 raw='[g3w] Laluś' -> Laluś
+2026-01-16 22:56:15,257 DEBUG [-] warbot: Final roster mapping: rank 19 raw='[g3w] waśki' -> Washi
+2026-01-16 22:56:15,257 DEBUG [-] warbot: Final roster mapping: rank 20 raw='[g3w] Stachu' -> Stachu
+2026-01-16 22:56:15,257 DEBUG [-] warbot: Final roster mapping: rank 21 raw='[g3w] Leon' -> Leon
+2026-01-16 22:56:15,257 DEBUG [-] warbot: Final roster mapping: rank 22 raw='[g3w] Waśka' -> Waśka
+2026-01-16 22:56:15,257 DEBUG [-] warbot: Final roster mapping: rank 23 raw='[g3w] max72' -> max72
+2026-01-16 22:56:15,257 DEBUG [-] warbot: Final roster mapping: rank 24 raw='[g3w] Tołek' -> Tolek
+2026-01-16 22:56:15,257 DEBUG [-] warbot: Final roster mapping: rank 25 raw='Zgredek' -> Zgredek
+2026-01-16 22:56:15,258 DEBUG [-] warbot: Final roster mapping: rank 26 raw='[g3w] Bo100n' -> Bo100n
+2026-01-16 22:56:15,258 DEBUG [-] warbot: Final roster mapping: rank 27 raw='[g3w] NoMercy' -> NoMercy
+2026-01-16 22:56:15,258 DEBUG [-] warbot: Final roster mapping: rank 28 raw='[g3w] grubson87®' -> grubson87®
+2026-01-16 22:56:15,258 DEBUG [-] warbot: Final roster mapping: rank 29 raw='[g3w] Thèviè' -> Thevil
+2026-01-16 22:56:15,258 DEBUG [-] warbot: Roster resolver: rank=1 raw='[g3w] czyro' cleaned='czyro' canonical='czyro' model_norm='czyro'
+2026-01-16 22:56:15,259 DEBUG [-] warbot:   candidate via model_norm: czyro score=1000
+2026-01-16 22:56:15,259 DEBUG [-] warbot:   candidate via exact(cleaned): czyro score=925
+2026-01-16 22:56:15,259 DEBUG [-] warbot:   fuzzy canonical variants: ['czyro', 'czyrs']
+2026-01-16 22:56:15,259 DEBUG [-] warbot:   candidate via fuzzy: czyro score=102.0
+2026-01-16 22:56:15,259 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'czyro')]
+2026-01-16 22:56:15,259 DEBUG [-] warbot: Roster resolver: rank=2 raw='[g3w] Malef' cleaned='Malef' canonical='malef' model_norm='Malef'
+2026-01-16 22:56:15,259 DEBUG [-] warbot:   candidate via model_norm: Malef score=1000
+2026-01-16 22:56:15,259 DEBUG [-] warbot:   candidate via exact(cleaned): Malef score=925
+2026-01-16 22:56:15,259 DEBUG [-] warbot:   fuzzy canonical variants: ['malef']
+2026-01-16 22:56:15,260 DEBUG [-] warbot:   candidate via fuzzy: Malef score=102.0
+2026-01-16 22:56:15,260 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Malef')]
+2026-01-16 22:56:15,260 DEBUG [-] warbot: Roster resolver: rank=3 raw='[g3w] NVRNV' cleaned='NVRNV' canonical='nvrnv' model_norm='NVRNV'
+2026-01-16 22:56:15,260 DEBUG [-] warbot:   candidate via model_norm: NVRNV score=1000
+2026-01-16 22:56:15,260 DEBUG [-] warbot:   candidate via exact(cleaned): NVRNV score=925
+2026-01-16 22:56:15,260 DEBUG [-] warbot:   fuzzy canonical variants: ['nnrnn', 'nrn', 'nvrnv', 'vrv', 'vvrvv']
+2026-01-16 22:56:15,260 DEBUG [-] warbot:   candidate via fuzzy: NVRNV score=102.0
+2026-01-16 22:56:15,261 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'NVRNV')]
+2026-01-16 22:56:15,261 DEBUG [-] warbot: Roster resolver: rank=4 raw='[g3w] Blacksmith' cleaned='Blacksmith' canonical='blacksmith' model_norm='Blacksmith'
+2026-01-16 22:56:15,261 DEBUG [-] warbot:   candidate via model_norm: Blacksmith score=1000
+2026-01-16 22:56:15,261 DEBUG [-] warbot:   candidate via exact(cleaned): Blacksmith score=925
+2026-01-16 22:56:15,261 DEBUG [-] warbot:   fuzzy canonical variants: ['blachsmith', 'blacksmith', 'blacksmitk']
+2026-01-16 22:56:15,261 DEBUG [-] warbot:   candidate via fuzzy: Blacksmith score=102.0
+2026-01-16 22:56:15,261 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Blacksmith')]
+2026-01-16 22:56:15,261 DEBUG [-] warbot: Roster resolver: rank=5 raw='[g3w] waśhi' cleaned='waśhi' canonical='washi' model_norm='Washi'
+2026-01-16 22:56:15,261 DEBUG [-] warbot:   candidate via model_norm: Washi score=1000
+2026-01-16 22:56:15,262 DEBUG [-] warbot:   fuzzy canonical variants: ['gasha', 'gashi', 'gaski', 'washa', 'washi', 'waska', 'waski']
+2026-01-16 22:56:15,262 DEBUG [-] warbot:   candidate via fuzzy: Washi score=102.0
+2026-01-16 22:56:15,262 DEBUG [-] warbot:   candidate via fuzzy: Waśka score=100.0
+2026-01-16 22:56:15,262 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Washi'), (100.0, 'Waśka')]
+2026-01-16 22:56:15,262 DEBUG [-] warbot: Roster resolver: rank=6 raw='[g3ω] ιαασο' cleaned='ιαασο' canonical='iaaso' model_norm=None
+2026-01-16 22:56:15,263 DEBUG [-] warbot:   candidate via alias: raw='[g3ω] ιαασο' -> 'Jaro' -> Jaro score=950
+2026-01-16 22:56:15,263 DEBUG [-] warbot:   fuzzy canonical variants: ['iaaso', 'iaass', 'ias', 'iaso', 'iass', 'jaro', 'jars', 'raro']
+2026-01-16 22:56:15,263 DEBUG [-] warbot:   candidate via fuzzy: Jaro score=102.0
+2026-01-16 22:56:15,264 DEBUG [-] warbot:   candidates sorted: [(950.0, 'Jaro')]
+2026-01-16 22:56:15,264 DEBUG [-] warbot: Roster resolver: rank=7 raw='[g3w] Tfevił' cleaned='Tfevił' canonical='tfevil' model_norm=None
+2026-01-16 22:56:15,264 DEBUG [-] warbot:   candidate via alias: raw='[g3w] Tfevił' -> 'Thevil' -> Thevil score=950
+2026-01-16 22:56:15,264 DEBUG [-] warbot:   fuzzy canonical variants: ['tfenil', 'tfevil', 'thenil', 'thevil', 'tkevil']
+2026-01-16 22:56:15,289 DEBUG [-] warbot:   candidate via fuzzy: Thevil score=102.0
+2026-01-16 22:56:15,289 DEBUG [-] warbot:   candidates sorted: [(950.0, 'Thevil')]
+2026-01-16 22:56:15,289 DEBUG [-] warbot: Roster resolver: rank=8 raw='[g3w] Drwian' cleaned='Drwian' canonical='drwian' model_norm='Drwian'
+2026-01-16 22:56:15,289 DEBUG [-] warbot:   candidate via model_norm: Drwian score=1000
+2026-01-16 22:56:15,289 DEBUG [-] warbot:   candidate via exact(cleaned): Drwian score=925
+2026-01-16 22:56:15,290 DEBUG [-] warbot:   fuzzy canonical variants: ['drwian', 'drwiav']
+2026-01-16 22:56:15,290 DEBUG [-] warbot:   candidate via fuzzy: Drwian score=102.0
+2026-01-16 22:56:15,290 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Drwian')]
+2026-01-16 22:56:15,290 DEBUG [-] warbot: Roster resolver: rank=9 raw='Bamber' cleaned='Bamber' canonical='bamber' model_norm='Bamber'
+2026-01-16 22:56:15,290 DEBUG [-] warbot:   candidate via model_norm: Bamber score=1000
+2026-01-16 22:56:15,290 DEBUG [-] warbot:   candidate via exact(cleaned): Bamber score=925
+2026-01-16 22:56:15,290 DEBUG [-] warbot:   fuzzy canonical variants: ['bamber']
+2026-01-16 22:56:15,290 DEBUG [-] warbot:   candidate via fuzzy: Bamber score=102.0
+2026-01-16 22:56:15,290 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Bamber')]
+2026-01-16 22:56:15,291 DEBUG [-] warbot: Roster resolver: rank=10 raw='[g3w] Michi' cleaned='Michi' canonical='michi' model_norm='Michi'
+2026-01-16 22:56:15,291 DEBUG [-] warbot:   candidate via model_norm: Michi score=1000
+2026-01-16 22:56:15,291 DEBUG [-] warbot:   candidate via exact(cleaned): Michi score=925
+2026-01-16 22:56:15,291 DEBUG [-] warbot:   fuzzy canonical variants: ['micha', 'michi', 'micka', 'micki']
+2026-01-16 22:56:15,291 DEBUG [-] warbot:   candidate via fuzzy: Michi score=102.0
+2026-01-16 22:56:15,291 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Michi')]
+2026-01-16 22:56:15,291 DEBUG [-] warbot: Roster resolver: rank=11 raw='[g3w] Gustaw jeleń' cleaned='Gustaw jeleń' canonical='gustawjelen' model_norm='Gustaw jeleń'
+2026-01-16 22:56:15,291 DEBUG [-] warbot:   candidate via model_norm: Gustaw jeleń score=1000
+2026-01-16 22:56:15,292 DEBUG [-] warbot:   candidate via exact(cleaned): Gustaw jeleń score=925
+2026-01-16 22:56:15,292 DEBUG [-] warbot:   fuzzy canonical variants: ['gustawjelen', 'gustawjelev', 'gustiwjelen', 'gustiwjelev', 'wustawjelen', 'wustawjelev', 'wustiwjelen']
+2026-01-16 22:56:15,292 DEBUG [-] warbot:   candidate via fuzzy: Gustaw jeleń score=102.0
+2026-01-16 22:56:15,292 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Gustaw jeleń')]
+2026-01-16 22:56:15,293 DEBUG [-] warbot: Roster resolver: rank=12 raw='[g3w] Leon' cleaned='Leon' canonical='leon' model_norm='Leon'
+2026-01-16 22:56:15,293 DEBUG [-] warbot:   candidate via model_norm: Leon score=1000
+2026-01-16 22:56:15,293 DEBUG [-] warbot:   candidate via exact(cleaned): Leon score=925
+2026-01-16 22:56:15,293 DEBUG [-] warbot:   fuzzy canonical variants: ['jeon', 'jeov', 'leon', 'leov', 'reon']
+2026-01-16 22:56:15,294 DEBUG [-] warbot:   candidate via fuzzy: Leon score=102.0
+2026-01-16 22:56:15,294 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Leon')]
+2026-01-16 22:56:15,294 DEBUG [-] warbot: Roster resolver: rank=13 raw='[g3w] Zgredek' cleaned='Zgredek' canonical='zgredek' model_norm='Zgredek'
+2026-01-16 22:56:15,294 DEBUG [-] warbot:   candidate via model_norm: Zgredek score=1000
+2026-01-16 22:56:15,294 DEBUG [-] warbot:   candidate via exact(cleaned): Zgredek score=925
+2026-01-16 22:56:15,294 DEBUG [-] warbot:   fuzzy canonical variants: ['zgredeh', 'zgredek']
+2026-01-16 22:56:15,295 DEBUG [-] warbot:   candidate via fuzzy: Zgredek score=102.0
+2026-01-16 22:56:15,295 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Zgredek')]
+2026-01-16 22:56:15,295 DEBUG [-] warbot: Roster resolver: rank=14 raw='[g3w] Geterus' cleaned='Geterus' canonical='geterus' model_norm='Geterus'
+2026-01-16 22:56:15,295 DEBUG [-] warbot:   candidate via model_norm: Geterus score=1000
+2026-01-16 22:56:15,295 DEBUG [-] warbot:   candidate via exact(cleaned): Geterus score=925
+2026-01-16 22:56:15,295 DEBUG [-] warbot:   fuzzy canonical variants: ['geteruo', 'geterus', 'weteruo', 'weterus']
+2026-01-16 22:56:15,296 DEBUG [-] warbot:   candidate via fuzzy: Geterus score=102.0
+2026-01-16 22:56:15,296 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Geterus')]
+2026-01-16 22:56:15,296 DEBUG [-] warbot: Roster resolver: rank=15 raw='[g3w] ropuch13' cleaned='ropuch13' canonical='ropuchi3' model_norm='ropuch13'
+2026-01-16 22:56:15,296 DEBUG [-] warbot:   candidate via model_norm: ropuch13 score=1000
+2026-01-16 22:56:15,296 DEBUG [-] warbot:   candidate via exact(cleaned): ropuch13 score=925
+2026-01-16 22:56:15,296 DEBUG [-] warbot:   fuzzy canonical variants: ['jopuchi3', 'jopucki3', 'ropuchi3', 'ropucki3']
+2026-01-16 22:56:15,297 DEBUG [-] warbot:   candidate via fuzzy: ropuch13 score=102.0
+2026-01-16 22:56:15,297 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'ropuch13')]
+2026-01-16 22:56:15,297 DEBUG [-] warbot: Roster resolver: rank=16 raw='[g3w] Waśka' cleaned='Waśka' canonical='waska' model_norm='Waśka'
+2026-01-16 22:56:15,297 DEBUG [-] warbot:   candidate via model_norm: Waśka score=1000
+2026-01-16 22:56:15,297 DEBUG [-] warbot:   candidate via exact(cleaned): Waśka score=925
+2026-01-16 22:56:15,297 DEBUG [-] warbot:   fuzzy canonical variants: ['gasha', 'gaska', 'gaski', 'washa', 'washi', 'waska', 'waski']
+2026-01-16 22:56:15,298 DEBUG [-] warbot:   candidate via fuzzy: Washi score=100.0
+2026-01-16 22:56:15,298 DEBUG [-] warbot:   candidate via fuzzy: Waśka score=102.0
+2026-01-16 22:56:15,298 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Waśka'), (100.0, 'Washi')]
+2026-01-16 22:56:15,298 DEBUG [-] warbot: Roster resolver: rank=17 raw='[g3w] łegendarny' cleaned='łegendarny' canonical='legendarny' model_norm=None
+2026-01-16 22:56:15,298 DEBUG [-] warbot:   fuzzy canonical variants: ['jegendarny', 'jegevdarvy', 'legendarny', 'legevdarvy', 'regendarny']
+2026-01-16 22:56:15,299 DEBUG [-] warbot:   candidate via fuzzy: Legendarny score=102.0
+2026-01-16 22:56:15,299 DEBUG [-] warbot:   candidates sorted: [(102.0, 'Legendarny')]
+2026-01-16 22:56:15,299 DEBUG [-] warbot: Roster resolver: rank=18 raw='[g3w] 〈〈 Z@w¡sz@ 〉〉' cleaned='〈〈 Z@w¡sz@ 〉〉' canonical='zawisza' model_norm=None
+2026-01-16 22:56:15,299 DEBUG [-] warbot:   fuzzy canonical variants: ['zawisza', 'zawiszi', 'ziwisza', 'ziwiszi']
+2026-01-16 22:56:15,300 DEBUG [-] warbot:   candidate via fuzzy: Zawisza score=102.0
+2026-01-16 22:56:15,300 DEBUG [-] warbot:   candidates sorted: [(102.0, 'Zawisza')]
+2026-01-16 22:56:15,300 DEBUG [-] warbot: Roster resolver: rank=19 raw='[g3w] madevil' cleaned='madevil' canonical='madevil' model_norm='Madevil'
+2026-01-16 22:56:15,300 DEBUG [-] warbot:   candidate via model_norm: Madevil score=1000
+2026-01-16 22:56:15,300 DEBUG [-] warbot:   candidate via exact(cleaned): Madevil score=925
+2026-01-16 22:56:15,300 DEBUG [-] warbot:   fuzzy canonical variants: ['madenil', 'madevil']
+2026-01-16 22:56:15,301 DEBUG [-] warbot:   candidate via fuzzy: Madevil score=102.0
+2026-01-16 22:56:15,301 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Madevil')]
+2026-01-16 22:56:15,301 DEBUG [-] warbot: Roster resolver: rank=20 raw='[g3w] Bo100n' cleaned='Bo100n' canonical='boioon' model_norm='Bo100n'
+2026-01-16 22:56:15,301 DEBUG [-] warbot:   candidate via model_norm: Bo100n score=1000
+2026-01-16 22:56:15,301 DEBUG [-] warbot:   candidate via exact(cleaned): Bo100n score=925
+2026-01-16 22:56:15,301 DEBUG [-] warbot:   fuzzy canonical variants: ['boion', 'boioon', 'boioov', 'boiov']
+2026-01-16 22:56:15,302 DEBUG [-] warbot:   candidate via fuzzy: Bo100n score=102.0
+2026-01-16 22:56:15,302 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Bo100n')]
+2026-01-16 22:56:15,302 DEBUG [-] warbot: Roster resolver: rank=21 raw='[g3w] Laluś' cleaned='Laluś' canonical='lalus' model_norm='Laluś'
+2026-01-16 22:56:15,302 DEBUG [-] warbot:   candidate via model_norm: Laluś score=1000
+2026-01-16 22:56:15,302 DEBUG [-] warbot:   candidate via exact(cleaned): Laluś score=925
+2026-01-16 22:56:15,302 DEBUG [-] warbot:   fuzzy canonical variants: ['jaluo', 'jalus', 'laluo', 'lalus', 'ralus']
+2026-01-16 22:56:15,303 DEBUG [-] warbot:   candidate via fuzzy: Laluś score=102.0
+2026-01-16 22:56:15,303 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Laluś')]
+2026-01-16 22:56:15,303 DEBUG [-] warbot: Roster resolver: rank=22 raw='[g3w] Stachu' cleaned='Stachu' canonical='stachu' model_norm='Stachu'
+2026-01-16 22:56:15,303 DEBUG [-] warbot:   candidate via model_norm: Stachu score=1000
+2026-01-16 22:56:15,303 DEBUG [-] warbot:   candidate via exact(cleaned): Stachu score=925
+2026-01-16 22:56:15,303 DEBUG [-] warbot:   fuzzy canonical variants: ['stachu', 'stacku']
+2026-01-16 22:56:15,303 DEBUG [-] warbot:   candidate via fuzzy: Stachu score=102.0
+2026-01-16 22:56:15,303 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Stachu')]
+2026-01-16 22:56:15,303 DEBUG [-] warbot: Roster resolver: rank=23 raw='[g3w] LoRdZik' cleaned='LoRdZik' canonical='lordzik' model_norm='LoRdZik'
+2026-01-16 22:56:15,304 DEBUG [-] warbot:   candidate via model_norm: LoRdZik score=1000
+2026-01-16 22:56:15,304 DEBUG [-] warbot:   candidate via exact(cleaned): LoRdZik score=925
+2026-01-16 22:56:15,304 DEBUG [-] warbot:   fuzzy canonical variants: ['jordzih', 'jordzik', 'lordzih', 'lordzik', 'rordzik']
+2026-01-16 22:56:15,304 DEBUG [-] warbot:   candidate via fuzzy: LoRdZik score=102.0
+2026-01-16 22:56:15,305 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'LoRdZik')]
+2026-01-16 22:56:15,305 DEBUG [-] warbot: Roster resolver: rank=24 raw='[g3w] max72' cleaned='max72' canonical='max72' model_norm='max72'
+2026-01-16 22:56:15,305 DEBUG [-] warbot:   candidate via model_norm: max72 score=1000
+2026-01-16 22:56:15,305 DEBUG [-] warbot:   candidate via exact(cleaned): max72 score=925
+2026-01-16 22:56:15,305 DEBUG [-] warbot:   fuzzy canonical variants: ['max72']
+2026-01-16 22:56:15,305 DEBUG [-] warbot:   candidate via fuzzy: max72 score=102.0
+2026-01-16 22:56:15,305 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'max72')]
+2026-01-16 22:56:15,305 DEBUG [-] warbot: Roster resolver: rank=25 raw='[g3w] ßuśh22' cleaned='ßuśh22' canonical='bush22' model_norm=None
+2026-01-16 22:56:15,305 DEBUG [-] warbot:   candidate via alias: raw='[g3w] ßuśh22' -> 'Bush22' -> Bush22 score=950
+2026-01-16 22:56:15,306 DEBUG [-] warbot:   fuzzy canonical variants: ['bush2', 'bush22', 'busk2', 'busk22']
+2026-01-16 22:56:15,306 DEBUG [-] warbot:   candidate via fuzzy: Bush22 score=102.0
+2026-01-16 22:56:15,306 DEBUG [-] warbot:   candidates sorted: [(950.0, 'Bush22')]
+2026-01-16 22:56:15,306 DEBUG [-] warbot: Roster resolver: rank=26 raw='[g3w] grubson87®' cleaned='grubson87®' canonical='grubson87' model_norm='grubson87®'
+2026-01-16 22:56:15,306 DEBUG [-] warbot:   candidate via model_norm: grubson87® score=1000
+2026-01-16 22:56:15,306 DEBUG [-] warbot:   candidate via exact(cleaned): grubson87® score=925
+2026-01-16 22:56:15,306 DEBUG [-] warbot:   fuzzy canonical variants: ['grubson87', 'grubsov87', 'wrubson87', 'wrubsov87']
+2026-01-16 22:56:15,307 DEBUG [-] warbot:   candidate via fuzzy: grubson87® score=102.0
+2026-01-16 22:56:15,307 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'grubson87®')]
+2026-01-16 22:56:15,307 DEBUG [-] warbot: Roster resolver: rank=27 raw='[g3w] Zise' cleaned='Zise' canonical='zise' model_norm='Zise'
+2026-01-16 22:56:15,307 DEBUG [-] warbot:   candidate via model_norm: Zise score=1000
+2026-01-16 22:56:15,307 DEBUG [-] warbot:   candidate via exact(cleaned): Zise score=925
+2026-01-16 22:56:15,307 DEBUG [-] warbot:   fuzzy canonical variants: ['zise']
+2026-01-16 22:56:15,307 DEBUG [-] warbot:   candidate via fuzzy: Zise score=102.0
+2026-01-16 22:56:15,307 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Zise')]
+2026-01-16 22:56:15,307 DEBUG [-] warbot: Roster resolver: rank=28 raw='[g3w] Tołek' cleaned='Tołek' canonical='tolek' model_norm='Tołek'
+2026-01-16 22:56:15,308 DEBUG [-] warbot:   fuzzy canonical variants: ['toleh', 'tolek']
+2026-01-16 22:56:15,308 DEBUG [-] warbot:   candidate via fuzzy: Tolek score=102.0
+2026-01-16 22:56:15,308 DEBUG [-] warbot:   candidates sorted: [(102.0, 'Tolek')]
+2026-01-16 22:56:15,308 DEBUG [-] warbot: Roster resolver: rank=29 raw='[g3w] Krati' cleaned='Krati' canonical='krati' model_norm=None
+2026-01-16 22:56:15,308 DEBUG [-] warbot:   fuzzy canonical variants: ['hrata', 'hrati', 'krata', 'krati']
+2026-01-16 22:56:15,309 DEBUG [-] warbot:   no roster candidates
+2026-01-16 22:56:15,309 DEBUG [-] warbot: Roster resolver: rank=30 raw='[g3w]★Quaster★™' cleaned='★Quaster★TM' canonical='quaster' model_norm='Quaster'
+2026-01-16 22:56:15,309 DEBUG [-] warbot:   candidate via model_norm: Quaster score=1000
+2026-01-16 22:56:15,309 DEBUG [-] warbot:   fuzzy canonical variants: ['quaster']
+2026-01-16 22:56:15,309 DEBUG [-] warbot:   candidate via fuzzy: Quaster score=102.0
+2026-01-16 22:56:15,309 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Quaster')]
+2026-01-16 22:56:15,309 DEBUG [-] warbot: Pre-assign exact-case: rank 1 cleaned='czyro' -> czyro
+2026-01-16 22:56:15,309 DEBUG [-] warbot: Pre-assign exact-case: rank 2 cleaned='Malef' -> Malef
+2026-01-16 22:56:15,309 DEBUG [-] warbot: Pre-assign exact-case: rank 3 cleaned='NVRNV' -> NVRNV
+2026-01-16 22:56:15,309 DEBUG [-] warbot: Pre-assign exact-case: rank 4 cleaned='Blacksmith' -> Blacksmith
+2026-01-16 22:56:15,309 DEBUG [-] warbot: Pre-assign exact-case: rank 8 cleaned='Drwian' -> Drwian
+2026-01-16 22:56:15,309 DEBUG [-] warbot: Pre-assign exact-case: rank 9 cleaned='Bamber' -> Bamber
+2026-01-16 22:56:15,309 DEBUG [-] warbot: Pre-assign exact-case: rank 10 cleaned='Michi' -> Michi
+2026-01-16 22:56:15,309 DEBUG [-] warbot: Pre-assign exact-case: rank 11 cleaned='Gustaw jeleń' -> Gustaw jeleń
+2026-01-16 22:56:15,309 DEBUG [-] warbot: Pre-assign exact-case: rank 12 cleaned='Leon' -> Leon
+2026-01-16 22:56:15,310 DEBUG [-] warbot: Pre-assign exact-case: rank 13 cleaned='Zgredek' -> Zgredek
+2026-01-16 22:56:15,310 DEBUG [-] warbot: Pre-assign exact-case: rank 14 cleaned='Geterus' -> Geterus
+2026-01-16 22:56:15,310 DEBUG [-] warbot: Pre-assign exact-case: rank 15 cleaned='ropuch13' -> ropuch13
+2026-01-16 22:56:15,310 DEBUG [-] warbot: Pre-assign exact-case: rank 16 cleaned='Waśka' -> Waśka
+2026-01-16 22:56:15,310 DEBUG [-] warbot: Pre-assign exact-case: rank 20 cleaned='Bo100n' -> Bo100n
+2026-01-16 22:56:15,310 DEBUG [-] warbot: Pre-assign exact-case: rank 21 cleaned='Laluś' -> Laluś
+2026-01-16 22:56:15,310 DEBUG [-] warbot: Pre-assign exact-case: rank 22 cleaned='Stachu' -> Stachu
+2026-01-16 22:56:15,310 DEBUG [-] warbot: Pre-assign exact-case: rank 23 cleaned='LoRdZik' -> LoRdZik
+2026-01-16 22:56:15,310 DEBUG [-] warbot: Pre-assign exact-case: rank 24 cleaned='max72' -> max72
+2026-01-16 22:56:15,310 DEBUG [-] warbot: Pre-assign exact-case: rank 26 cleaned='grubson87®' -> grubson87®
+2026-01-16 22:56:15,310 DEBUG [-] warbot: Pre-assign exact-case: rank 27 cleaned='Zise' -> Zise
+2026-01-16 22:56:15,310 DEBUG [-] warbot: Assign pass: best_rank=5 candidate=Washi score=1000.0
+2026-01-16 22:56:15,310 DEBUG [-] warbot:   assigned rank 5 -> Washi
+2026-01-16 22:56:15,310 DEBUG [-] warbot: Assign pass: best_rank=19 candidate=Madevil score=1000.0
+2026-01-16 22:56:15,310 DEBUG [-] warbot:   assigned rank 19 -> Madevil
+2026-01-16 22:56:15,310 DEBUG [-] warbot: Assign pass: best_rank=30 candidate=Quaster score=1000.0
+2026-01-16 22:56:15,310 DEBUG [-] warbot:   assigned rank 30 -> Quaster
+2026-01-16 22:56:15,310 DEBUG [-] warbot: Assign pass: best_rank=6 candidate=Jaro score=950.0
+2026-01-16 22:56:15,310 DEBUG [-] warbot:   assigned rank 6 -> Jaro
+2026-01-16 22:56:15,310 DEBUG [-] warbot: Assign pass: best_rank=7 candidate=Thevil score=950.0
+2026-01-16 22:56:15,310 DEBUG [-] warbot:   assigned rank 7 -> Thevil
+2026-01-16 22:56:15,311 DEBUG [-] warbot: Assign pass: best_rank=25 candidate=Bush22 score=950.0
+2026-01-16 22:56:15,311 DEBUG [-] warbot:   assigned rank 25 -> Bush22
+2026-01-16 22:56:15,311 DEBUG [-] warbot: Assign pass: best_rank=17 candidate=Legendarny score=102.0
+2026-01-16 22:56:15,311 DEBUG [-] warbot:   assigned rank 17 -> Legendarny
+2026-01-16 22:56:15,311 DEBUG [-] warbot: Assign pass: best_rank=18 candidate=Zawisza score=102.0
+2026-01-16 22:56:15,311 DEBUG [-] warbot:   assigned rank 18 -> Zawisza
+2026-01-16 22:56:15,311 DEBUG [-] warbot: Assign pass: best_rank=28 candidate=Tolek score=102.0
+2026-01-16 22:56:15,311 DEBUG [-] warbot:   assigned rank 28 -> Tolek
+2026-01-16 22:56:15,311 DEBUG [-] warbot: Final roster mapping: rank 1 raw='[g3w] czyro' -> czyro
+2026-01-16 22:56:15,311 DEBUG [-] warbot: Final roster mapping: rank 2 raw='[g3w] Malef' -> Malef
+2026-01-16 22:56:15,311 DEBUG [-] warbot: Final roster mapping: rank 3 raw='[g3w] NVRNV' -> NVRNV
+2026-01-16 22:56:15,311 DEBUG [-] warbot: Final roster mapping: rank 4 raw='[g3w] Blacksmith' -> Blacksmith
+2026-01-16 22:56:15,311 DEBUG [-] warbot: Final roster mapping: rank 5 raw='[g3w] waśhi' -> Washi
+2026-01-16 22:56:15,311 DEBUG [-] warbot: Final roster mapping: rank 6 raw='[g3ω] ιαασο' -> Jaro
+2026-01-16 22:56:15,311 DEBUG [-] warbot: Final roster mapping: rank 7 raw='[g3w] Tfevił' -> Thevil
+2026-01-16 22:56:15,311 DEBUG [-] warbot: Final roster mapping: rank 8 raw='[g3w] Drwian' -> Drwian
+2026-01-16 22:56:15,311 DEBUG [-] warbot: Final roster mapping: rank 9 raw='Bamber' -> Bamber
+2026-01-16 22:56:15,311 DEBUG [-] warbot: Final roster mapping: rank 10 raw='[g3w] Michi' -> Michi
+2026-01-16 22:56:15,311 DEBUG [-] warbot: Final roster mapping: rank 11 raw='[g3w] Gustaw jeleń' -> Gustaw jeleń
+2026-01-16 22:56:15,311 DEBUG [-] warbot: Final roster mapping: rank 12 raw='[g3w] Leon' -> Leon
+2026-01-16 22:56:15,311 DEBUG [-] warbot: Final roster mapping: rank 13 raw='[g3w] Zgredek' -> Zgredek
+2026-01-16 22:56:15,311 DEBUG [-] warbot: Final roster mapping: rank 14 raw='[g3w] Geterus' -> Geterus
+2026-01-16 22:56:15,311 DEBUG [-] warbot: Final roster mapping: rank 15 raw='[g3w] ropuch13' -> ropuch13
+2026-01-16 22:56:15,312 DEBUG [-] warbot: Final roster mapping: rank 16 raw='[g3w] Waśka' -> Waśka
+2026-01-16 22:56:15,312 DEBUG [-] warbot: Final roster mapping: rank 17 raw='[g3w] łegendarny' -> Legendarny
+2026-01-16 22:56:15,312 DEBUG [-] warbot: Final roster mapping: rank 18 raw='[g3w] 〈〈 Z@w¡sz@ 〉〉' -> Zawisza
+2026-01-16 22:56:15,312 DEBUG [-] warbot: Final roster mapping: rank 19 raw='[g3w] madevil' -> Madevil
+2026-01-16 22:56:15,312 DEBUG [-] warbot: Final roster mapping: rank 20 raw='[g3w] Bo100n' -> Bo100n
+2026-01-16 22:56:15,312 DEBUG [-] warbot: Final roster mapping: rank 21 raw='[g3w] Laluś' -> Laluś
+2026-01-16 22:56:15,312 DEBUG [-] warbot: Final roster mapping: rank 22 raw='[g3w] Stachu' -> Stachu
+2026-01-16 22:56:15,312 DEBUG [-] warbot: Final roster mapping: rank 23 raw='[g3w] LoRdZik' -> LoRdZik
+2026-01-16 22:56:15,312 DEBUG [-] warbot: Final roster mapping: rank 24 raw='[g3w] max72' -> max72
+2026-01-16 22:56:15,312 DEBUG [-] warbot: Final roster mapping: rank 25 raw='[g3w] ßuśh22' -> Bush22
+2026-01-16 22:56:15,312 DEBUG [-] warbot: Final roster mapping: rank 26 raw='[g3w] grubson87®' -> grubson87®
+2026-01-16 22:56:15,312 DEBUG [-] warbot: Final roster mapping: rank 27 raw='[g3w] Zise' -> Zise
+2026-01-16 22:56:15,312 DEBUG [-] warbot: Final roster mapping: rank 28 raw='[g3w] Tołek' -> Tolek
+2026-01-16 22:56:15,312 DEBUG [-] warbot: Final roster mapping: rank 29 raw='[g3w] Krati' -> OUT_OF_ROSTER(Krati)
+2026-01-16 22:56:15,312 DEBUG [-] warbot: Final roster mapping: rank 30 raw='[g3w]★Quaster★™' -> Quaster
+2026-01-16 22:56:15,313 DEBUG [-] warbot: Roster resolver: rank=1 raw='LoRdziK' cleaned='LoRdziK' canonical='lordzik' model_norm=None
+2026-01-16 22:56:15,313 DEBUG [-] warbot:   candidate via exact(cleaned): LoRdZik score=925
+2026-01-16 22:56:15,313 DEBUG [-] warbot:   fuzzy canonical variants: ['jordzih', 'jordzik', 'lordzih', 'lordzik', 'rordzik']
+2026-01-16 22:56:15,314 DEBUG [-] warbot:   candidate via fuzzy: LoRdZik score=102.0
+2026-01-16 22:56:15,314 DEBUG [-] warbot:   candidates sorted: [(925.0, 'LoRdZik')]
+2026-01-16 22:56:15,314 DEBUG [-] warbot: Roster resolver: rank=2 raw='Bamber' cleaned='Bamber' canonical='bamber' model_norm='Bamber'
+2026-01-16 22:56:15,314 DEBUG [-] warbot:   candidate via model_norm: Bamber score=1000
+2026-01-16 22:56:15,314 DEBUG [-] warbot:   candidate via exact(cleaned): Bamber score=925
+2026-01-16 22:56:15,314 DEBUG [-] warbot:   fuzzy canonical variants: ['bamber']
+2026-01-16 22:56:15,315 DEBUG [-] warbot:   candidate via fuzzy: Bamber score=102.0
+2026-01-16 22:56:15,315 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Bamber')]
+2026-01-16 22:56:15,315 DEBUG [-] warbot: Roster resolver: rank=3 raw='[g3w] NVRNV' cleaned='NVRNV' canonical='nvrnv' model_norm='NVRNV'
+2026-01-16 22:56:15,315 DEBUG [-] warbot:   candidate via model_norm: NVRNV score=1000
+2026-01-16 22:56:15,315 DEBUG [-] warbot:   candidate via exact(cleaned): NVRNV score=925
+2026-01-16 22:56:15,315 DEBUG [-] warbot:   fuzzy canonical variants: ['nnrnn', 'nrn', 'nvrnv', 'vrv', 'vvrvv']
+2026-01-16 22:56:15,316 DEBUG [-] warbot:   candidate via fuzzy: NVRNV score=102.0
+2026-01-16 22:56:15,316 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'NVRNV')]
+2026-01-16 22:56:15,316 DEBUG [-] warbot: Roster resolver: rank=4 raw='[g3ω] Geterus' cleaned='Geterus' canonical='geterus' model_norm='Geterus'
+2026-01-16 22:56:15,316 DEBUG [-] warbot:   candidate via model_norm: Geterus score=1000
+2026-01-16 22:56:15,316 DEBUG [-] warbot:   candidate via exact(cleaned): Geterus score=925
+2026-01-16 22:56:15,316 DEBUG [-] warbot:   fuzzy canonical variants: ['geteruo', 'geterus', 'weteruo', 'weterus']
+2026-01-16 22:56:15,317 DEBUG [-] warbot:   candidate via fuzzy: Geterus score=102.0
+2026-01-16 22:56:15,317 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Geterus')]
+2026-01-16 22:56:15,317 DEBUG [-] warbot: Roster resolver: rank=5 raw='[g3v] Krati' cleaned='Krati' canonical='krati' model_norm=None
+2026-01-16 22:56:15,317 DEBUG [-] warbot:   fuzzy canonical variants: ['hrata', 'hrati', 'krata', 'krati']
+2026-01-16 22:56:15,318 DEBUG [-] warbot:   no roster candidates
+2026-01-16 22:56:15,318 DEBUG [-] warbot: Roster resolver: rank=6 raw='ZgredeK' cleaned='ZgredeK' canonical='zgredek' model_norm=None
+2026-01-16 22:56:15,318 DEBUG [-] warbot:   candidate via exact(cleaned): Zgredek score=925
+2026-01-16 22:56:15,318 DEBUG [-] warbot:   fuzzy canonical variants: ['zgredeh', 'zgredek']
+2026-01-16 22:56:15,318 DEBUG [-] warbot:   candidate via fuzzy: Zgredek score=102.0
+2026-01-16 22:56:15,318 DEBUG [-] warbot:   candidates sorted: [(925.0, 'Zgredek')]
+2026-01-16 22:56:15,318 DEBUG [-] warbot: Roster resolver: rank=7 raw='Bo100n' cleaned='Bo100n' canonical='boioon' model_norm='Bo100n'
+2026-01-16 22:56:15,318 DEBUG [-] warbot:   candidate via model_norm: Bo100n score=1000
+2026-01-16 22:56:15,318 DEBUG [-] warbot:   candidate via exact(cleaned): Bo100n score=925
+2026-01-16 22:56:15,319 DEBUG [-] warbot:   fuzzy canonical variants: ['boion', 'boioon', 'boioov', 'boiov']
+2026-01-16 22:56:15,319 DEBUG [-] warbot:   candidate via fuzzy: Bo100n score=102.0
+2026-01-16 22:56:15,319 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Bo100n')]
+2026-01-16 22:56:15,319 DEBUG [-] warbot: Roster resolver: rank=8 raw='Gustaw jeleń' cleaned='Gustaw jeleń' canonical='gustawjelen' model_norm='Gustaw jeleń'
+2026-01-16 22:56:15,319 DEBUG [-] warbot:   candidate via model_norm: Gustaw jeleń score=1000
+2026-01-16 22:56:15,319 DEBUG [-] warbot:   candidate via exact(cleaned): Gustaw jeleń score=925
+2026-01-16 22:56:15,319 DEBUG [-] warbot:   fuzzy canonical variants: ['gustawjelen', 'gustawjelev', 'gustiwjelen', 'gustiwjelev', 'wustawjelen', 'wustawjelev', 'wustiwjelen']
+2026-01-16 22:56:15,320 DEBUG [-] warbot:   candidate via fuzzy: Gustaw jeleń score=102.0
+2026-01-16 22:56:15,320 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Gustaw jeleń')]
+2026-01-16 22:56:15,320 DEBUG [-] warbot: Roster resolver: rank=9 raw='Malef' cleaned='Malef' canonical='malef' model_norm='Malef'
+2026-01-16 22:56:15,320 DEBUG [-] warbot:   candidate via model_norm: Malef score=1000
+2026-01-16 22:56:15,320 DEBUG [-] warbot:   candidate via exact(cleaned): Malef score=925
+2026-01-16 22:56:15,321 DEBUG [-] warbot:   fuzzy canonical variants: ['malef']
+2026-01-16 22:56:15,321 DEBUG [-] warbot:   candidate via fuzzy: Malef score=102.0
+2026-01-16 22:56:15,321 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Malef')]
+2026-01-16 22:56:15,321 DEBUG [-] warbot: Roster resolver: rank=10 raw='Stachu' cleaned='Stachu' canonical='stachu' model_norm='Stachu'
+2026-01-16 22:56:15,321 DEBUG [-] warbot:   candidate via model_norm: Stachu score=1000
+2026-01-16 22:56:15,321 DEBUG [-] warbot:   candidate via exact(cleaned): Stachu score=925
+2026-01-16 22:56:15,321 DEBUG [-] warbot:   fuzzy canonical variants: ['stachu', 'stacku']
+2026-01-16 22:56:15,321 DEBUG [-] warbot:   candidate via fuzzy: Stachu score=102.0
+2026-01-16 22:56:15,321 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Stachu')]
+2026-01-16 22:56:15,322 DEBUG [-] warbot: Roster resolver: rank=11 raw='яасσ' cleaned='яасσ' canonical='raco' model_norm=None
+2026-01-16 22:56:15,322 DEBUG [-] warbot:   fuzzy canonical variants: ['jaco', 'jacs', 'raco', 'racs']
+2026-01-16 22:56:15,322 DEBUG [-] warbot:   no roster candidates
+2026-01-16 22:56:15,322 DEBUG [-] warbot: Roster resolver: rank=12 raw='czyro' cleaned='czyro' canonical='czyro' model_norm='czyro'
+2026-01-16 22:56:15,322 DEBUG [-] warbot:   candidate via model_norm: czyro score=1000
+2026-01-16 22:56:15,322 DEBUG [-] warbot:   candidate via exact(cleaned): czyro score=925
+2026-01-16 22:56:15,323 DEBUG [-] warbot:   fuzzy canonical variants: ['czyro', 'czyrs']
+2026-01-16 22:56:15,323 DEBUG [-] warbot:   candidate via fuzzy: czyro score=102.0
+2026-01-16 22:56:15,323 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'czyro')]
+2026-01-16 22:56:15,323 DEBUG [-] warbot: Roster resolver: rank=13 raw='gąśhı' cleaned='gąśhı' canonical='gashi' model_norm=None
+2026-01-16 22:56:15,323 DEBUG [-] warbot:   candidate via alias: raw='gąśhı' -> 'Washi' -> Washi score=950
+2026-01-16 22:56:15,323 DEBUG [-] warbot:   fuzzy canonical variants: ['gasha', 'gashi', 'gaska', 'gaski', 'washa', 'washi', 'waski']
+2026-01-16 22:56:15,324 DEBUG [-] warbot:   candidate via fuzzy: Washi score=102.0
+2026-01-16 22:56:15,324 DEBUG [-] warbot:   candidate via fuzzy: Waśka score=88.9
+2026-01-16 22:56:15,324 DEBUG [-] warbot:   candidates sorted: [(950.0, 'Washi'), (88.88888888888889, 'Waśka')]
+2026-01-16 22:56:15,324 DEBUG [-] warbot: Roster resolver: rank=14 raw='Leon' cleaned='Leon' canonical='leon' model_norm='Leon'
+2026-01-16 22:56:15,324 DEBUG [-] warbot:   candidate via model_norm: Leon score=1000
+2026-01-16 22:56:15,325 DEBUG [-] warbot:   candidate via exact(cleaned): Leon score=925
+2026-01-16 22:56:15,325 DEBUG [-] warbot:   fuzzy canonical variants: ['jeon', 'jeov', 'leon', 'leov', 'reon']
+2026-01-16 22:56:15,325 DEBUG [-] warbot:   candidate via fuzzy: Leon score=102.0
+2026-01-16 22:56:15,325 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Leon')]
+2026-01-16 22:56:15,325 DEBUG [-] warbot: Roster resolver: rank=15 raw='Thęvił' cleaned='Thęvił' canonical='thevil' model_norm=None
+2026-01-16 22:56:15,325 DEBUG [-] warbot:   fuzzy canonical variants: ['thenil', 'thevil', 'tkenil', 'tkevil']
+2026-01-16 22:56:15,326 DEBUG [-] warbot:   candidate via fuzzy: Thevil score=102.0
+2026-01-16 22:56:15,326 DEBUG [-] warbot:   candidates sorted: [(102.0, 'Thevil')]
+2026-01-16 22:56:15,326 DEBUG [-] warbot: Roster resolver: rank=16 raw='łeɡeɳdąrny' cleaned='łeɡeɳdąrny' canonical='legedarny' model_norm=None
+2026-01-16 22:56:15,326 DEBUG [-] warbot:   fuzzy canonical variants: ['jegedarny', 'jegedarvy', 'jegendarny', 'legedarny', 'legedarvy', 'legendarny', 'legevdarvy', 'regedarny']
+2026-01-16 22:56:15,327 DEBUG [-] warbot:   candidate via fuzzy: Legendarny score=102.0
+2026-01-16 22:56:15,327 DEBUG [-] warbot:   candidates sorted: [(102.0, 'Legendarny')]
+2026-01-16 22:56:15,327 DEBUG [-] warbot: Roster resolver: rank=17 raw='NoMercy' cleaned='NoMercy' canonical='nomercy' model_norm='NoMercy'
+2026-01-16 22:56:15,327 DEBUG [-] warbot:   candidate via model_norm: NoMercy score=1000
+2026-01-16 22:56:15,327 DEBUG [-] warbot:   candidate via exact(cleaned): NoMercy score=925
+2026-01-16 22:56:15,328 DEBUG [-] warbot:   fuzzy canonical variants: ['nomercy', 'vomercy']
+2026-01-16 22:56:15,328 DEBUG [-] warbot:   candidate via fuzzy: NoMercy score=102.0
+2026-01-16 22:56:15,328 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'NoMercy')]
+2026-01-16 22:56:15,328 DEBUG [-] warbot: Roster resolver: rank=18 raw='Zise' cleaned='Zise' canonical='zise' model_norm='Zise'
+2026-01-16 22:56:15,328 DEBUG [-] warbot:   candidate via model_norm: Zise score=1000
+2026-01-16 22:56:15,328 DEBUG [-] warbot:   candidate via exact(cleaned): Zise score=925
+2026-01-16 22:56:15,328 DEBUG [-] warbot:   fuzzy canonical variants: ['zise']
+2026-01-16 22:56:15,329 DEBUG [-] warbot:   candidate via fuzzy: Zise score=102.0
+2026-01-16 22:56:15,329 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Zise')]
+2026-01-16 22:56:15,329 DEBUG [-] warbot: Roster resolver: rank=19 raw='Blacksmith' cleaned='Blacksmith' canonical='blacksmith' model_norm='Blacksmith'
+2026-01-16 22:56:15,329 DEBUG [-] warbot:   candidate via model_norm: Blacksmith score=1000
+2026-01-16 22:56:15,329 DEBUG [-] warbot:   candidate via exact(cleaned): Blacksmith score=925
+2026-01-16 22:56:15,329 DEBUG [-] warbot:   fuzzy canonical variants: ['blachsmith', 'blacksmith', 'blacksmitk']
+2026-01-16 22:56:15,330 DEBUG [-] warbot:   candidate via fuzzy: Blacksmith score=102.0
+2026-01-16 22:56:15,330 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Blacksmith')]
+2026-01-16 22:56:15,330 DEBUG [-] warbot: Roster resolver: rank=20 raw='maðeνił' cleaned='maðeνił' canonical='madevil' model_norm=None
+2026-01-16 22:56:15,330 DEBUG [-] warbot:   fuzzy canonical variants: ['madenil', 'madevil']
+2026-01-16 22:56:15,331 DEBUG [-] warbot:   candidate via fuzzy: Madevil score=102.0
+2026-01-16 22:56:15,331 DEBUG [-] warbot:   candidates sorted: [(102.0, 'Madevil')]
+2026-01-16 22:56:15,331 DEBUG [-] warbot: Roster resolver: rank=21 raw='《》Z@Wi$Z@《》' cleaned='《》Z@Wi$Z@《》' canonical='zawisza' model_norm=None
+2026-01-16 22:56:15,331 DEBUG [-] warbot:   fuzzy canonical variants: ['zawisza', 'zawiszi', 'ziwisza', 'ziwiszi']
+2026-01-16 22:56:15,331 DEBUG [-] warbot:   candidate via fuzzy: Zawisza score=102.0
+2026-01-16 22:56:15,331 DEBUG [-] warbot:   candidates sorted: [(102.0, 'Zawisza')]
+2026-01-16 22:56:15,331 DEBUG [-] warbot: Roster resolver: rank=22 raw='ropuch13' cleaned='ropuch13' canonical='ropuchi3' model_norm='ropuch13'
+2026-01-16 22:56:15,332 DEBUG [-] warbot:   candidate via model_norm: ropuch13 score=1000
+2026-01-16 22:56:15,332 DEBUG [-] warbot:   candidate via exact(cleaned): ropuch13 score=925
+2026-01-16 22:56:15,332 DEBUG [-] warbot:   fuzzy canonical variants: ['jopuchi3', 'jopucki3', 'ropuchi3', 'ropucki3']
+2026-01-16 22:56:15,332 DEBUG [-] warbot:   candidate via fuzzy: ropuch13 score=102.0
+2026-01-16 22:56:15,332 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'ropuch13')]
+2026-01-16 22:56:15,332 DEBUG [-] warbot: Roster resolver: rank=23 raw='★QuASTER★™' cleaned='★QuASTER★TM' canonical='quaster' model_norm='Quaster'
+2026-01-16 22:56:15,332 DEBUG [-] warbot:   candidate via model_norm: Quaster score=1000
+2026-01-16 22:56:15,332 DEBUG [-] warbot:   fuzzy canonical variants: ['quaster']
+2026-01-16 22:56:15,333 DEBUG [-] warbot:   candidate via fuzzy: Quaster score=102.0
+2026-01-16 22:56:15,333 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Quaster')]
+2026-01-16 22:56:15,333 DEBUG [-] warbot: Roster resolver: rank=24 raw='max72' cleaned='max72' canonical='max72' model_norm='max72'
+2026-01-16 22:56:15,333 DEBUG [-] warbot:   candidate via model_norm: max72 score=1000
+2026-01-16 22:56:15,333 DEBUG [-] warbot:   candidate via exact(cleaned): max72 score=925
+2026-01-16 22:56:15,333 DEBUG [-] warbot:   fuzzy canonical variants: ['max72']
+2026-01-16 22:56:15,333 DEBUG [-] warbot:   candidate via fuzzy: max72 score=102.0
+2026-01-16 22:56:15,333 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'max72')]
+2026-01-16 22:56:15,333 DEBUG [-] warbot: Roster resolver: rank=25 raw='Waśka' cleaned='Waśka' canonical='waska' model_norm='Waśka'
+2026-01-16 22:56:15,333 DEBUG [-] warbot:   candidate via model_norm: Waśka score=1000
+2026-01-16 22:56:15,334 DEBUG [-] warbot:   candidate via exact(cleaned): Waśka score=925
+2026-01-16 22:56:15,334 DEBUG [-] warbot:   fuzzy canonical variants: ['gasha', 'gaska', 'gaski', 'washa', 'washi', 'waska', 'waski']
+2026-01-16 22:56:15,334 DEBUG [-] warbot:   candidate via fuzzy: Washi score=100.0
+2026-01-16 22:56:15,334 DEBUG [-] warbot:   candidate via fuzzy: Waśka score=102.0
+2026-01-16 22:56:15,334 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Waśka'), (100.0, 'Washi')]
+2026-01-16 22:56:15,335 DEBUG [-] warbot: Roster resolver: rank=26 raw='Tołek' cleaned='Tołek' canonical='tolek' model_norm=None
+2026-01-16 22:56:15,335 DEBUG [-] warbot:   fuzzy canonical variants: ['toleh', 'tolek']
+2026-01-16 22:56:15,335 DEBUG [-] warbot:   candidate via fuzzy: Tolek score=102.0
+2026-01-16 22:56:15,335 DEBUG [-] warbot:   candidates sorted: [(102.0, 'Tolek')]
+2026-01-16 22:56:15,335 DEBUG [-] warbot: Roster resolver: rank=27 raw='ßuśh22' cleaned='ßuśh22' canonical='bush22' model_norm=None
+2026-01-16 22:56:15,335 DEBUG [-] warbot:   candidate via alias: raw='ßuśh22' -> 'Bush22' -> Bush22 score=950
+2026-01-16 22:56:15,335 DEBUG [-] warbot:   fuzzy canonical variants: ['bush2', 'bush22', 'busk2', 'busk22']
+2026-01-16 22:56:15,336 DEBUG [-] warbot:   candidate via fuzzy: Bush22 score=102.0
+2026-01-16 22:56:15,336 DEBUG [-] warbot:   candidates sorted: [(950.0, 'Bush22')]
+2026-01-16 22:56:15,336 DEBUG [-] warbot: Roster resolver: rank=28 raw='Laluś' cleaned='Laluś' canonical='lalus' model_norm='Laluś'
+2026-01-16 22:56:15,336 DEBUG [-] warbot:   candidate via model_norm: Laluś score=1000
+2026-01-16 22:56:15,336 DEBUG [-] warbot:   candidate via exact(cleaned): Laluś score=925
+2026-01-16 22:56:15,336 DEBUG [-] warbot:   fuzzy canonical variants: ['jaluo', 'jalus', 'laluo', 'lalus', 'ralus']
+2026-01-16 22:56:15,337 DEBUG [-] warbot:   candidate via fuzzy: Laluś score=102.0
+2026-01-16 22:56:15,337 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Laluś')]
+2026-01-16 22:56:15,337 DEBUG [-] warbot: Roster resolver: rank=29 raw='grubson87®' cleaned='grubson87®' canonical='grubson87' model_norm='grubson87®'
+2026-01-16 22:56:15,337 DEBUG [-] warbot:   candidate via model_norm: grubson87® score=1000
+2026-01-16 22:56:15,337 DEBUG [-] warbot:   candidate via exact(cleaned): grubson87® score=925
+2026-01-16 22:56:15,337 DEBUG [-] warbot:   fuzzy canonical variants: ['grubson87', 'grubsov87', 'wrubson87', 'wrubsov87']
+2026-01-16 22:56:15,338 DEBUG [-] warbot:   candidate via fuzzy: grubson87® score=102.0
+2026-01-16 22:56:15,338 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'grubson87®')]
+2026-01-16 22:56:15,338 DEBUG [-] warbot: Pre-assign exact-case: rank 2 cleaned='Bamber' -> Bamber
+2026-01-16 22:56:15,338 DEBUG [-] warbot: Pre-assign exact-case: rank 3 cleaned='NVRNV' -> NVRNV
+2026-01-16 22:56:15,338 DEBUG [-] warbot: Pre-assign exact-case: rank 4 cleaned='Geterus' -> Geterus
+2026-01-16 22:56:15,338 DEBUG [-] warbot: Pre-assign exact-case: rank 7 cleaned='Bo100n' -> Bo100n
+2026-01-16 22:56:15,338 DEBUG [-] warbot: Pre-assign exact-case: rank 8 cleaned='Gustaw jeleń' -> Gustaw jeleń
+2026-01-16 22:56:15,338 DEBUG [-] warbot: Pre-assign exact-case: rank 9 cleaned='Malef' -> Malef
+2026-01-16 22:56:15,338 DEBUG [-] warbot: Pre-assign exact-case: rank 10 cleaned='Stachu' -> Stachu
+2026-01-16 22:56:15,338 DEBUG [-] warbot: Pre-assign exact-case: rank 12 cleaned='czyro' -> czyro
+2026-01-16 22:56:15,338 DEBUG [-] warbot: Pre-assign exact-case: rank 14 cleaned='Leon' -> Leon
+2026-01-16 22:56:15,338 DEBUG [-] warbot: Pre-assign exact-case: rank 17 cleaned='NoMercy' -> NoMercy
+2026-01-16 22:56:15,338 DEBUG [-] warbot: Pre-assign exact-case: rank 18 cleaned='Zise' -> Zise
+2026-01-16 22:56:15,338 DEBUG [-] warbot: Pre-assign exact-case: rank 19 cleaned='Blacksmith' -> Blacksmith
+2026-01-16 22:56:15,338 DEBUG [-] warbot: Pre-assign exact-case: rank 22 cleaned='ropuch13' -> ropuch13
+2026-01-16 22:56:15,338 DEBUG [-] warbot: Pre-assign exact-case: rank 24 cleaned='max72' -> max72
+2026-01-16 22:56:15,338 DEBUG [-] warbot: Pre-assign exact-case: rank 25 cleaned='Waśka' -> Waśka
+2026-01-16 22:56:15,339 DEBUG [-] warbot: Pre-assign exact-case: rank 28 cleaned='Laluś' -> Laluś
+2026-01-16 22:56:15,339 DEBUG [-] warbot: Pre-assign exact-case: rank 29 cleaned='grubson87®' -> grubson87®
+2026-01-16 22:56:15,339 DEBUG [-] warbot: Assign pass: best_rank=23 candidate=Quaster score=1000.0
+2026-01-16 22:56:15,339 DEBUG [-] warbot:   assigned rank 23 -> Quaster
+2026-01-16 22:56:15,339 DEBUG [-] warbot: Assign pass: best_rank=13 candidate=Washi score=950.0
+2026-01-16 22:56:15,339 DEBUG [-] warbot:   assigned rank 13 -> Washi
+2026-01-16 22:56:15,339 DEBUG [-] warbot: Assign pass: best_rank=27 candidate=Bush22 score=950.0
+2026-01-16 22:56:15,339 DEBUG [-] warbot:   assigned rank 27 -> Bush22
+2026-01-16 22:56:15,339 DEBUG [-] warbot: Assign pass: best_rank=1 candidate=LoRdZik score=925.0
+2026-01-16 22:56:15,339 DEBUG [-] warbot:   assigned rank 1 -> LoRdZik
+2026-01-16 22:56:15,339 DEBUG [-] warbot: Assign pass: best_rank=6 candidate=Zgredek score=925.0
+2026-01-16 22:56:15,339 DEBUG [-] warbot:   assigned rank 6 -> Zgredek
+2026-01-16 22:56:15,339 DEBUG [-] warbot: Assign pass: best_rank=15 candidate=Thevil score=102.0
+2026-01-16 22:56:15,339 DEBUG [-] warbot:   assigned rank 15 -> Thevil
+2026-01-16 22:56:15,339 DEBUG [-] warbot: Assign pass: best_rank=16 candidate=Legendarny score=102.0
+2026-01-16 22:56:15,339 DEBUG [-] warbot:   assigned rank 16 -> Legendarny
+2026-01-16 22:56:15,339 DEBUG [-] warbot: Assign pass: best_rank=20 candidate=Madevil score=102.0
+2026-01-16 22:56:15,340 DEBUG [-] warbot:   assigned rank 20 -> Madevil
+2026-01-16 22:56:15,340 DEBUG [-] warbot: Assign pass: best_rank=21 candidate=Zawisza score=102.0
+2026-01-16 22:56:15,340 DEBUG [-] warbot:   assigned rank 21 -> Zawisza
+2026-01-16 22:56:15,340 DEBUG [-] warbot: Assign pass: best_rank=26 candidate=Tolek score=102.0
+2026-01-16 22:56:15,340 DEBUG [-] warbot:   assigned rank 26 -> Tolek
+2026-01-16 22:56:15,340 DEBUG [-] warbot: Final roster mapping: rank 1 raw='LoRdziK' -> LoRdZik
+2026-01-16 22:56:15,340 DEBUG [-] warbot: Final roster mapping: rank 2 raw='Bamber' -> Bamber
+2026-01-16 22:56:15,340 DEBUG [-] warbot: Final roster mapping: rank 3 raw='[g3w] NVRNV' -> NVRNV
+2026-01-16 22:56:15,340 DEBUG [-] warbot: Final roster mapping: rank 4 raw='[g3ω] Geterus' -> Geterus
+2026-01-16 22:56:15,340 DEBUG [-] warbot: Final roster mapping: rank 5 raw='[g3v] Krati' -> OUT_OF_ROSTER(Krati)
+2026-01-16 22:56:15,340 DEBUG [-] warbot: Final roster mapping: rank 6 raw='ZgredeK' -> Zgredek
+2026-01-16 22:56:15,340 DEBUG [-] warbot: Final roster mapping: rank 7 raw='Bo100n' -> Bo100n
+2026-01-16 22:56:15,340 DEBUG [-] warbot: Final roster mapping: rank 8 raw='Gustaw jeleń' -> Gustaw jeleń
+2026-01-16 22:56:15,340 DEBUG [-] warbot: Final roster mapping: rank 9 raw='Malef' -> Malef
+2026-01-16 22:56:15,340 DEBUG [-] warbot: Final roster mapping: rank 10 raw='Stachu' -> Stachu
+2026-01-16 22:56:15,340 DEBUG [-] warbot: Final roster mapping: rank 11 raw='яасσ' -> OUT_OF_ROSTER(яасσ)
+2026-01-16 22:56:15,340 DEBUG [-] warbot: Final roster mapping: rank 12 raw='czyro' -> czyro
+2026-01-16 22:56:15,340 DEBUG [-] warbot: Final roster mapping: rank 13 raw='gąśhı' -> Washi
+2026-01-16 22:56:15,340 DEBUG [-] warbot: Final roster mapping: rank 14 raw='Leon' -> Leon
+2026-01-16 22:56:15,340 DEBUG [-] warbot: Final roster mapping: rank 15 raw='Thęvił' -> Thevil
+2026-01-16 22:56:15,341 DEBUG [-] warbot: Final roster mapping: rank 16 raw='łeɡeɳdąrny' -> Legendarny
+2026-01-16 22:56:15,341 DEBUG [-] warbot: Final roster mapping: rank 17 raw='NoMercy' -> NoMercy
+2026-01-16 22:56:15,341 DEBUG [-] warbot: Final roster mapping: rank 18 raw='Zise' -> Zise
+2026-01-16 22:56:15,341 DEBUG [-] warbot: Final roster mapping: rank 19 raw='Blacksmith' -> Blacksmith
+2026-01-16 22:56:15,341 DEBUG [-] warbot: Final roster mapping: rank 20 raw='maðeνił' -> Madevil
+2026-01-16 22:56:15,341 DEBUG [-] warbot: Final roster mapping: rank 21 raw='《》Z@Wi$Z@《》' -> Zawisza
+2026-01-16 22:56:15,341 DEBUG [-] warbot: Final roster mapping: rank 22 raw='ropuch13' -> ropuch13
+2026-01-16 22:56:15,341 DEBUG [-] warbot: Final roster mapping: rank 23 raw='★QuASTER★™' -> Quaster
+2026-01-16 22:56:15,341 DEBUG [-] warbot: Final roster mapping: rank 24 raw='max72' -> max72
+2026-01-16 22:56:15,341 DEBUG [-] warbot: Final roster mapping: rank 25 raw='Waśka' -> Waśka
+2026-01-16 22:56:15,341 DEBUG [-] warbot: Final roster mapping: rank 26 raw='Tołek' -> Tolek
+2026-01-16 22:56:15,341 DEBUG [-] warbot: Final roster mapping: rank 27 raw='ßuśh22' -> Bush22
+2026-01-16 22:56:15,341 DEBUG [-] warbot: Final roster mapping: rank 28 raw='Laluś' -> Laluś
+2026-01-16 22:56:15,341 DEBUG [-] warbot: Final roster mapping: rank 29 raw='grubson87®' -> grubson87®
+2026-01-16 22:58:09,008 DEBUG [-] warbot: Roster resolver: rank=1 raw='LoRdziK' cleaned='LoRdziK' canonical='lordzik' model_norm=None
+2026-01-16 22:58:09,009 DEBUG [-] warbot:   candidate via exact(cleaned): LoRdZik score=925
+2026-01-16 22:58:09,010 DEBUG [-] warbot:   fuzzy canonical variants: ['jordzih', 'jordzik', 'lordzih', 'lordzik', 'rordzik']
+2026-01-16 22:58:09,011 DEBUG [-] warbot:   candidate via fuzzy: LoRdZik score=102.0
+2026-01-16 22:58:09,011 DEBUG [-] warbot:   candidates sorted: [(925.0, 'LoRdZik')]
+2026-01-16 22:58:09,011 DEBUG [-] warbot: Roster resolver: rank=2 raw='Bamber' cleaned='Bamber' canonical='bamber' model_norm='Bamber'
+2026-01-16 22:58:09,011 DEBUG [-] warbot:   candidate via model_norm: Bamber score=1000
+2026-01-16 22:58:09,011 DEBUG [-] warbot:   candidate via exact(cleaned): Bamber score=925
+2026-01-16 22:58:09,011 DEBUG [-] warbot:   fuzzy canonical variants: ['bamber']
+2026-01-16 22:58:09,011 DEBUG [-] warbot:   candidate via fuzzy: Bamber score=102.0
+2026-01-16 22:58:09,011 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Bamber')]
+2026-01-16 22:58:09,011 DEBUG [-] warbot: Roster resolver: rank=3 raw='[g3w] NVRNV' cleaned='NVRNV' canonical='nvrnv' model_norm='NVRNV'
+2026-01-16 22:58:09,012 DEBUG [-] warbot:   candidate via model_norm: NVRNV score=1000
+2026-01-16 22:58:09,012 DEBUG [-] warbot:   candidate via exact(cleaned): NVRNV score=925
+2026-01-16 22:58:09,012 DEBUG [-] warbot:   fuzzy canonical variants: ['nnrnn', 'nrn', 'nvrnv', 'vrv', 'vvrvv']
+2026-01-16 22:58:09,012 DEBUG [-] warbot:   candidate via fuzzy: NVRNV score=102.0
+2026-01-16 22:58:09,012 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'NVRNV')]
+2026-01-16 22:58:09,012 DEBUG [-] warbot: Roster resolver: rank=4 raw='[g3ω] Geterus' cleaned='Geterus' canonical='geterus' model_norm='Geterus'
+2026-01-16 22:58:09,013 DEBUG [-] warbot:   candidate via model_norm: Geterus score=1000
+2026-01-16 22:58:09,013 DEBUG [-] warbot:   candidate via exact(cleaned): Geterus score=925
+2026-01-16 22:58:09,013 DEBUG [-] warbot:   fuzzy canonical variants: ['geteruo', 'geterus', 'weteruo', 'weterus']
+2026-01-16 22:58:09,013 DEBUG [-] warbot:   candidate via fuzzy: Geterus score=102.0
+2026-01-16 22:58:09,013 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Geterus')]
+2026-01-16 22:58:09,013 DEBUG [-] warbot: Roster resolver: rank=5 raw='[g3v] Krati' cleaned='Krati' canonical='krati' model_norm=None
+2026-01-16 22:58:09,013 DEBUG [-] warbot:   fuzzy canonical variants: ['hrata', 'hrati', 'krata', 'krati']
+2026-01-16 22:58:09,014 DEBUG [-] warbot:   no roster candidates
+2026-01-16 22:58:09,014 DEBUG [-] warbot: Roster resolver: rank=6 raw='ZgredeK' cleaned='ZgredeK' canonical='zgredek' model_norm=None
+2026-01-16 22:58:09,014 DEBUG [-] warbot:   candidate via exact(cleaned): Zgredek score=925
+2026-01-16 22:58:09,014 DEBUG [-] warbot:   fuzzy canonical variants: ['zgredeh', 'zgredek']
+2026-01-16 22:58:09,015 DEBUG [-] warbot:   candidate via fuzzy: Zgredek score=102.0
+2026-01-16 22:58:09,015 DEBUG [-] warbot:   candidates sorted: [(925.0, 'Zgredek')]
+2026-01-16 22:58:09,015 DEBUG [-] warbot: Roster resolver: rank=7 raw='Bo100n' cleaned='Bo100n' canonical='boioon' model_norm='Bo100n'
+2026-01-16 22:58:09,015 DEBUG [-] warbot:   candidate via model_norm: Bo100n score=1000
+2026-01-16 22:58:09,015 DEBUG [-] warbot:   candidate via exact(cleaned): Bo100n score=925
+2026-01-16 22:58:09,015 DEBUG [-] warbot:   fuzzy canonical variants: ['boion', 'boioon', 'boioov', 'boiov']
+2026-01-16 22:58:09,015 DEBUG [-] warbot:   candidate via fuzzy: Bo100n score=102.0
+2026-01-16 22:58:09,016 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Bo100n')]
+2026-01-16 22:58:09,016 DEBUG [-] warbot: Roster resolver: rank=8 raw='Gustaw jeleń' cleaned='Gustaw jeleń' canonical='gustawjelen' model_norm='Gustaw jeleń'
+2026-01-16 22:58:09,016 DEBUG [-] warbot:   candidate via model_norm: Gustaw jeleń score=1000
+2026-01-16 22:58:09,016 DEBUG [-] warbot:   candidate via exact(cleaned): Gustaw jeleń score=925
+2026-01-16 22:58:09,016 DEBUG [-] warbot:   fuzzy canonical variants: ['gustawjelen', 'gustawjelev', 'gustiwjelen', 'gustiwjelev', 'wustawjelen', 'wustawjelev', 'wustiwjelen']
+2026-01-16 22:58:09,017 DEBUG [-] warbot:   candidate via fuzzy: Gustaw jeleń score=102.0
+2026-01-16 22:58:09,017 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Gustaw jeleń')]
+2026-01-16 22:58:09,017 DEBUG [-] warbot: Roster resolver: rank=9 raw='Malef' cleaned='Malef' canonical='malef' model_norm='Malef'
+2026-01-16 22:58:09,017 DEBUG [-] warbot:   candidate via model_norm: Malef score=1000
+2026-01-16 22:58:09,017 DEBUG [-] warbot:   candidate via exact(cleaned): Malef score=925
+2026-01-16 22:58:09,017 DEBUG [-] warbot:   fuzzy canonical variants: ['malef']
+2026-01-16 22:58:09,017 DEBUG [-] warbot:   candidate via fuzzy: Malef score=102.0
+2026-01-16 22:58:09,017 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Malef')]
+2026-01-16 22:58:09,017 DEBUG [-] warbot: Roster resolver: rank=10 raw='Stachu' cleaned='Stachu' canonical='stachu' model_norm='Stachu'
+2026-01-16 22:58:09,017 DEBUG [-] warbot:   candidate via model_norm: Stachu score=1000
+2026-01-16 22:58:09,018 DEBUG [-] warbot:   candidate via exact(cleaned): Stachu score=925
+2026-01-16 22:58:09,018 DEBUG [-] warbot:   fuzzy canonical variants: ['stachu', 'stacku']
+2026-01-16 22:58:09,018 DEBUG [-] warbot:   candidate via fuzzy: Stachu score=102.0
+2026-01-16 22:58:09,018 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Stachu')]
+2026-01-16 22:58:09,018 DEBUG [-] warbot: Roster resolver: rank=11 raw='яасσ' cleaned='яасσ' canonical='raco' model_norm=None
+2026-01-16 22:58:09,018 DEBUG [-] warbot:   candidate via alias: raw='яасσ' -> 'Jaro' -> Jaro score=950
+2026-01-16 22:58:09,018 DEBUG [-] warbot:   fuzzy canonical variants: ['jaco', 'jacs', 'jaro', 'jars', 'raco', 'racs', 'raro']
+2026-01-16 22:58:09,019 DEBUG [-] warbot:   candidate via fuzzy: Jaro score=102.0
+2026-01-16 22:58:09,019 DEBUG [-] warbot:   candidates sorted: [(950.0, 'Jaro')]
+2026-01-16 22:58:09,019 DEBUG [-] warbot: Roster resolver: rank=12 raw='czyro' cleaned='czyro' canonical='czyro' model_norm='czyro'
+2026-01-16 22:58:09,019 DEBUG [-] warbot:   candidate via model_norm: czyro score=1000
+2026-01-16 22:58:09,019 DEBUG [-] warbot:   candidate via exact(cleaned): czyro score=925
+2026-01-16 22:58:09,019 DEBUG [-] warbot:   fuzzy canonical variants: ['czyro', 'czyrs']
+2026-01-16 22:58:09,020 DEBUG [-] warbot:   candidate via fuzzy: czyro score=102.0
+2026-01-16 22:58:09,020 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'czyro')]
+2026-01-16 22:58:09,020 DEBUG [-] warbot: Roster resolver: rank=13 raw='gąśhı' cleaned='gąśhı' canonical='gashi' model_norm=None
+2026-01-16 22:58:09,020 DEBUG [-] warbot:   candidate via alias: raw='gąśhı' -> 'Washi' -> Washi score=950
+2026-01-16 22:58:09,020 DEBUG [-] warbot:   fuzzy canonical variants: ['gasha', 'gashi', 'gaska', 'gaski', 'washa', 'washi', 'waski']
+2026-01-16 22:58:09,021 DEBUG [-] warbot:   candidate via fuzzy: Washi score=102.0
+2026-01-16 22:58:09,021 DEBUG [-] warbot:   candidate via fuzzy: Waśka score=88.9
+2026-01-16 22:58:09,021 DEBUG [-] warbot:   candidates sorted: [(950.0, 'Washi'), (88.88888888888889, 'Waśka')]
+2026-01-16 22:58:09,021 DEBUG [-] warbot: Roster resolver: rank=14 raw='Leon' cleaned='Leon' canonical='leon' model_norm='Leon'
+2026-01-16 22:58:09,021 DEBUG [-] warbot:   candidate via model_norm: Leon score=1000
+2026-01-16 22:58:09,021 DEBUG [-] warbot:   candidate via exact(cleaned): Leon score=925
+2026-01-16 22:58:09,021 DEBUG [-] warbot:   fuzzy canonical variants: ['jeon', 'jeov', 'leon', 'leov', 'reon']
+2026-01-16 22:58:09,022 DEBUG [-] warbot:   candidate via fuzzy: Leon score=102.0
+2026-01-16 22:58:09,022 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Leon')]
+2026-01-16 22:58:09,022 DEBUG [-] warbot: Roster resolver: rank=15 raw='Thęvił' cleaned='Thęvił' canonical='thevil' model_norm=None
+2026-01-16 22:58:09,022 DEBUG [-] warbot:   fuzzy canonical variants: ['thenil', 'thevil', 'tkenil', 'tkevil']
+2026-01-16 22:58:09,023 DEBUG [-] warbot:   candidate via fuzzy: Thevil score=102.0
+2026-01-16 22:58:09,023 DEBUG [-] warbot:   candidates sorted: [(102.0, 'Thevil')]
+2026-01-16 22:58:09,023 DEBUG [-] warbot: Roster resolver: rank=16 raw='łeɡeɳdąrny' cleaned='łeɡeɳdąrny' canonical='legedarny' model_norm=None
+2026-01-16 22:58:09,023 DEBUG [-] warbot:   fuzzy canonical variants: ['jegedarny', 'jegedarvy', 'jegendarny', 'legedarny', 'legedarvy', 'legendarny', 'legevdarvy', 'regedarny']
+2026-01-16 22:58:09,024 DEBUG [-] warbot:   candidate via fuzzy: Legendarny score=102.0
+2026-01-16 22:58:09,024 DEBUG [-] warbot:   candidates sorted: [(102.0, 'Legendarny')]
+2026-01-16 22:58:09,024 DEBUG [-] warbot: Roster resolver: rank=17 raw='NoMercy' cleaned='NoMercy' canonical='nomercy' model_norm='NoMercy'
+2026-01-16 22:58:09,024 DEBUG [-] warbot:   candidate via model_norm: NoMercy score=1000
+2026-01-16 22:58:09,024 DEBUG [-] warbot:   candidate via exact(cleaned): NoMercy score=925
+2026-01-16 22:58:09,024 DEBUG [-] warbot:   fuzzy canonical variants: ['nomercy', 'vomercy']
+2026-01-16 22:58:09,025 DEBUG [-] warbot:   candidate via fuzzy: NoMercy score=102.0
+2026-01-16 22:58:09,025 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'NoMercy')]
+2026-01-16 22:58:09,025 DEBUG [-] warbot: Roster resolver: rank=18 raw='Zise' cleaned='Zise' canonical='zise' model_norm='Zise'
+2026-01-16 22:58:09,025 DEBUG [-] warbot:   candidate via model_norm: Zise score=1000
+2026-01-16 22:58:09,025 DEBUG [-] warbot:   candidate via exact(cleaned): Zise score=925
+2026-01-16 22:58:09,025 DEBUG [-] warbot:   fuzzy canonical variants: ['zise']
+2026-01-16 22:58:09,025 DEBUG [-] warbot:   candidate via fuzzy: Zise score=102.0
+2026-01-16 22:58:09,025 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Zise')]
+2026-01-16 22:58:09,025 DEBUG [-] warbot: Roster resolver: rank=19 raw='Blacksmith' cleaned='Blacksmith' canonical='blacksmith' model_norm='Blacksmith'
+2026-01-16 22:58:09,025 DEBUG [-] warbot:   candidate via model_norm: Blacksmith score=1000
+2026-01-16 22:58:09,025 DEBUG [-] warbot:   candidate via exact(cleaned): Blacksmith score=925
+2026-01-16 22:58:09,026 DEBUG [-] warbot:   fuzzy canonical variants: ['blachsmith', 'blacksmith', 'blacksmitk']
+2026-01-16 22:58:09,026 DEBUG [-] warbot:   candidate via fuzzy: Blacksmith score=102.0
+2026-01-16 22:58:09,026 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Blacksmith')]
+2026-01-16 22:58:09,026 DEBUG [-] warbot: Roster resolver: rank=20 raw='maðeνił' cleaned='maðeνił' canonical='madevil' model_norm=None
+2026-01-16 22:58:09,026 DEBUG [-] warbot:   fuzzy canonical variants: ['madenil', 'madevil']
+2026-01-16 22:58:09,027 DEBUG [-] warbot:   candidate via fuzzy: Madevil score=102.0
+2026-01-16 22:58:09,027 DEBUG [-] warbot:   candidates sorted: [(102.0, 'Madevil')]
+2026-01-16 22:58:09,027 DEBUG [-] warbot: Roster resolver: rank=21 raw='《》Z@Wi$Z@《》' cleaned='《》Z@Wi$Z@《》' canonical='zawisza' model_norm=None
+2026-01-16 22:58:09,027 DEBUG [-] warbot:   fuzzy canonical variants: ['zawisza', 'zawiszi', 'ziwisza', 'ziwiszi']
+2026-01-16 22:58:09,027 DEBUG [-] warbot:   candidate via fuzzy: Zawisza score=102.0
+2026-01-16 22:58:09,027 DEBUG [-] warbot:   candidates sorted: [(102.0, 'Zawisza')]
+2026-01-16 22:58:09,027 DEBUG [-] warbot: Roster resolver: rank=22 raw='ropuch13' cleaned='ropuch13' canonical='ropuchi3' model_norm='ropuch13'
+2026-01-16 22:58:09,027 DEBUG [-] warbot:   candidate via model_norm: ropuch13 score=1000
+2026-01-16 22:58:09,028 DEBUG [-] warbot:   candidate via exact(cleaned): ropuch13 score=925
+2026-01-16 22:58:09,028 DEBUG [-] warbot:   fuzzy canonical variants: ['jopuchi3', 'jopucki3', 'ropuchi3', 'ropucki3']
+2026-01-16 22:58:09,028 DEBUG [-] warbot:   candidate via fuzzy: ropuch13 score=102.0
+2026-01-16 22:58:09,028 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'ropuch13')]
+2026-01-16 22:58:09,028 DEBUG [-] warbot: Roster resolver: rank=23 raw='★QuASTER★™' cleaned='★QuASTER★TM' canonical='quaster' model_norm='Quaster'
+2026-01-16 22:58:09,028 DEBUG [-] warbot:   candidate via model_norm: Quaster score=1000
+2026-01-16 22:58:09,028 DEBUG [-] warbot:   fuzzy canonical variants: ['quaster']
+2026-01-16 22:58:09,029 DEBUG [-] warbot:   candidate via fuzzy: Quaster score=102.0
+2026-01-16 22:58:09,029 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Quaster')]
+2026-01-16 22:58:09,029 DEBUG [-] warbot: Roster resolver: rank=24 raw='max72' cleaned='max72' canonical='max72' model_norm='max72'
+2026-01-16 22:58:09,029 DEBUG [-] warbot:   candidate via model_norm: max72 score=1000
+2026-01-16 22:58:09,029 DEBUG [-] warbot:   candidate via exact(cleaned): max72 score=925
+2026-01-16 22:58:09,029 DEBUG [-] warbot:   fuzzy canonical variants: ['max72']
+2026-01-16 22:58:09,029 DEBUG [-] warbot:   candidate via fuzzy: max72 score=102.0
+2026-01-16 22:58:09,029 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'max72')]
+2026-01-16 22:58:09,029 DEBUG [-] warbot: Roster resolver: rank=25 raw='Waśka' cleaned='Waśka' canonical='waska' model_norm='Waśka'
+2026-01-16 22:58:09,029 DEBUG [-] warbot:   candidate via model_norm: Waśka score=1000
+2026-01-16 22:58:09,030 DEBUG [-] warbot:   candidate via exact(cleaned): Waśka score=925
+2026-01-16 22:58:09,030 DEBUG [-] warbot:   fuzzy canonical variants: ['gasha', 'gaska', 'gaski', 'washa', 'washi', 'waska', 'waski']
+2026-01-16 22:58:09,030 DEBUG [-] warbot:   candidate via fuzzy: Washi score=100.0
+2026-01-16 22:58:09,030 DEBUG [-] warbot:   candidate via fuzzy: Waśka score=102.0
+2026-01-16 22:58:09,031 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Waśka'), (100.0, 'Washi')]
+2026-01-16 22:58:09,031 DEBUG [-] warbot: Roster resolver: rank=26 raw='Tołek' cleaned='Tołek' canonical='tolek' model_norm=None
+2026-01-16 22:58:09,031 DEBUG [-] warbot:   fuzzy canonical variants: ['toleh', 'tolek']
+2026-01-16 22:58:09,031 DEBUG [-] warbot:   candidate via fuzzy: Tolek score=102.0
+2026-01-16 22:58:09,031 DEBUG [-] warbot:   candidates sorted: [(102.0, 'Tolek')]
+2026-01-16 22:58:09,031 DEBUG [-] warbot: Roster resolver: rank=27 raw='ßuśh22' cleaned='ßuśh22' canonical='bush22' model_norm=None
+2026-01-16 22:58:09,031 DEBUG [-] warbot:   candidate via alias: raw='ßuśh22' -> 'Bush22' -> Bush22 score=950
+2026-01-16 22:58:09,031 DEBUG [-] warbot:   fuzzy canonical variants: ['bush2', 'bush22', 'busk2', 'busk22']
+2026-01-16 22:58:09,032 DEBUG [-] warbot:   candidate via fuzzy: Bush22 score=102.0
+2026-01-16 22:58:09,032 DEBUG [-] warbot:   candidates sorted: [(950.0, 'Bush22')]
+2026-01-16 22:58:09,032 DEBUG [-] warbot: Roster resolver: rank=28 raw='Laluś' cleaned='Laluś' canonical='lalus' model_norm='Laluś'
+2026-01-16 22:58:09,032 DEBUG [-] warbot:   candidate via model_norm: Laluś score=1000
+2026-01-16 22:58:09,032 DEBUG [-] warbot:   candidate via exact(cleaned): Laluś score=925
+2026-01-16 22:58:09,032 DEBUG [-] warbot:   fuzzy canonical variants: ['jaluo', 'jalus', 'laluo', 'lalus', 'ralus']
+2026-01-16 22:58:09,033 DEBUG [-] warbot:   candidate via fuzzy: Laluś score=102.0
+2026-01-16 22:58:09,033 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Laluś')]
+2026-01-16 22:58:09,033 DEBUG [-] warbot: Roster resolver: rank=29 raw='grubson87®' cleaned='grubson87®' canonical='grubson87' model_norm='grubson87®'
+2026-01-16 22:58:09,033 DEBUG [-] warbot:   candidate via model_norm: grubson87® score=1000
+2026-01-16 22:58:09,033 DEBUG [-] warbot:   candidate via exact(cleaned): grubson87® score=925
+2026-01-16 22:58:09,033 DEBUG [-] warbot:   fuzzy canonical variants: ['grubson87', 'grubsov87', 'wrubson87', 'wrubsov87']
+2026-01-16 22:58:09,034 DEBUG [-] warbot:   candidate via fuzzy: grubson87® score=102.0
+2026-01-16 22:58:09,034 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'grubson87®')]
+2026-01-16 22:58:09,034 DEBUG [-] warbot: Pre-assign exact-case: rank 2 cleaned='Bamber' -> Bamber
+2026-01-16 22:58:09,034 DEBUG [-] warbot: Pre-assign exact-case: rank 3 cleaned='NVRNV' -> NVRNV
+2026-01-16 22:58:09,034 DEBUG [-] warbot: Pre-assign exact-case: rank 4 cleaned='Geterus' -> Geterus
+2026-01-16 22:58:09,034 DEBUG [-] warbot: Pre-assign exact-case: rank 7 cleaned='Bo100n' -> Bo100n
+2026-01-16 22:58:09,034 DEBUG [-] warbot: Pre-assign exact-case: rank 8 cleaned='Gustaw jeleń' -> Gustaw jeleń
+2026-01-16 22:58:09,034 DEBUG [-] warbot: Pre-assign exact-case: rank 9 cleaned='Malef' -> Malef
+2026-01-16 22:58:09,034 DEBUG [-] warbot: Pre-assign exact-case: rank 10 cleaned='Stachu' -> Stachu
+2026-01-16 22:58:09,034 DEBUG [-] warbot: Pre-assign exact-case: rank 12 cleaned='czyro' -> czyro
+2026-01-16 22:58:09,034 DEBUG [-] warbot: Pre-assign exact-case: rank 14 cleaned='Leon' -> Leon
+2026-01-16 22:58:09,034 DEBUG [-] warbot: Pre-assign exact-case: rank 17 cleaned='NoMercy' -> NoMercy
+2026-01-16 22:58:09,035 DEBUG [-] warbot: Pre-assign exact-case: rank 18 cleaned='Zise' -> Zise
+2026-01-16 22:58:09,035 DEBUG [-] warbot: Pre-assign exact-case: rank 19 cleaned='Blacksmith' -> Blacksmith
+2026-01-16 22:58:09,035 DEBUG [-] warbot: Pre-assign exact-case: rank 22 cleaned='ropuch13' -> ropuch13
+2026-01-16 22:58:09,035 DEBUG [-] warbot: Pre-assign exact-case: rank 24 cleaned='max72' -> max72
+2026-01-16 22:58:09,035 DEBUG [-] warbot: Pre-assign exact-case: rank 25 cleaned='Waśka' -> Waśka
+2026-01-16 22:58:09,035 DEBUG [-] warbot: Pre-assign exact-case: rank 28 cleaned='Laluś' -> Laluś
+2026-01-16 22:58:09,035 DEBUG [-] warbot: Pre-assign exact-case: rank 29 cleaned='grubson87®' -> grubson87®
+2026-01-16 22:58:09,035 DEBUG [-] warbot: Assign pass: best_rank=23 candidate=Quaster score=1000.0
+2026-01-16 22:58:09,035 DEBUG [-] warbot:   assigned rank 23 -> Quaster
+2026-01-16 22:58:09,035 DEBUG [-] warbot: Assign pass: best_rank=11 candidate=Jaro score=950.0
+2026-01-16 22:58:09,035 DEBUG [-] warbot:   assigned rank 11 -> Jaro
+2026-01-16 22:58:09,035 DEBUG [-] warbot: Assign pass: best_rank=13 candidate=Washi score=950.0
+2026-01-16 22:58:09,035 DEBUG [-] warbot:   assigned rank 13 -> Washi
+2026-01-16 22:58:09,035 DEBUG [-] warbot: Assign pass: best_rank=27 candidate=Bush22 score=950.0
+2026-01-16 22:58:09,035 DEBUG [-] warbot:   assigned rank 27 -> Bush22
+2026-01-16 22:58:09,035 DEBUG [-] warbot: Assign pass: best_rank=1 candidate=LoRdZik score=925.0
+2026-01-16 22:58:09,036 DEBUG [-] warbot:   assigned rank 1 -> LoRdZik
+2026-01-16 22:58:09,036 DEBUG [-] warbot: Assign pass: best_rank=6 candidate=Zgredek score=925.0
+2026-01-16 22:58:09,036 DEBUG [-] warbot:   assigned rank 6 -> Zgredek
+2026-01-16 22:58:09,036 DEBUG [-] warbot: Assign pass: best_rank=15 candidate=Thevil score=102.0
+2026-01-16 22:58:09,036 DEBUG [-] warbot:   assigned rank 15 -> Thevil
+2026-01-16 22:58:09,036 DEBUG [-] warbot: Assign pass: best_rank=16 candidate=Legendarny score=102.0
+2026-01-16 22:58:09,036 DEBUG [-] warbot:   assigned rank 16 -> Legendarny
+2026-01-16 22:58:09,036 DEBUG [-] warbot: Assign pass: best_rank=20 candidate=Madevil score=102.0
+2026-01-16 22:58:09,036 DEBUG [-] warbot:   assigned rank 20 -> Madevil
+2026-01-16 22:58:09,036 DEBUG [-] warbot: Assign pass: best_rank=21 candidate=Zawisza score=102.0
+2026-01-16 22:58:09,036 DEBUG [-] warbot:   assigned rank 21 -> Zawisza
+2026-01-16 22:58:09,036 DEBUG [-] warbot: Assign pass: best_rank=26 candidate=Tolek score=102.0
+2026-01-16 22:58:09,036 DEBUG [-] warbot:   assigned rank 26 -> Tolek
+2026-01-16 22:58:09,036 DEBUG [-] warbot: Final roster mapping: rank 1 raw='LoRdziK' -> LoRdZik
+2026-01-16 22:58:09,036 DEBUG [-] warbot: Final roster mapping: rank 2 raw='Bamber' -> Bamber
+2026-01-16 22:58:09,036 DEBUG [-] warbot: Final roster mapping: rank 3 raw='[g3w] NVRNV' -> NVRNV
+2026-01-16 22:58:09,036 DEBUG [-] warbot: Final roster mapping: rank 4 raw='[g3ω] Geterus' -> Geterus
+2026-01-16 22:58:09,037 DEBUG [-] warbot: Final roster mapping: rank 5 raw='[g3v] Krati' -> OUT_OF_ROSTER(Krati)
+2026-01-16 22:58:09,037 DEBUG [-] warbot: Final roster mapping: rank 6 raw='ZgredeK' -> Zgredek
+2026-01-16 22:58:09,037 DEBUG [-] warbot: Final roster mapping: rank 7 raw='Bo100n' -> Bo100n
+2026-01-16 22:58:09,037 DEBUG [-] warbot: Final roster mapping: rank 8 raw='Gustaw jeleń' -> Gustaw jeleń
+2026-01-16 22:58:09,037 DEBUG [-] warbot: Final roster mapping: rank 9 raw='Malef' -> Malef
+2026-01-16 22:58:09,037 DEBUG [-] warbot: Final roster mapping: rank 10 raw='Stachu' -> Stachu
+2026-01-16 22:58:09,037 DEBUG [-] warbot: Final roster mapping: rank 11 raw='яасσ' -> Jaro
+2026-01-16 22:58:09,037 DEBUG [-] warbot: Final roster mapping: rank 12 raw='czyro' -> czyro
+2026-01-16 22:58:09,037 DEBUG [-] warbot: Final roster mapping: rank 13 raw='gąśhı' -> Washi
+2026-01-16 22:58:09,037 DEBUG [-] warbot: Final roster mapping: rank 14 raw='Leon' -> Leon
+2026-01-16 22:58:09,037 DEBUG [-] warbot: Final roster mapping: rank 15 raw='Thęvił' -> Thevil
+2026-01-16 22:58:09,037 DEBUG [-] warbot: Final roster mapping: rank 16 raw='łeɡeɳdąrny' -> Legendarny
+2026-01-16 22:58:09,037 DEBUG [-] warbot: Final roster mapping: rank 17 raw='NoMercy' -> NoMercy
+2026-01-16 22:58:09,037 DEBUG [-] warbot: Final roster mapping: rank 18 raw='Zise' -> Zise
+2026-01-16 22:58:09,037 DEBUG [-] warbot: Final roster mapping: rank 19 raw='Blacksmith' -> Blacksmith
+2026-01-16 22:58:09,037 DEBUG [-] warbot: Final roster mapping: rank 20 raw='maðeνił' -> Madevil
+2026-01-16 22:58:09,037 DEBUG [-] warbot: Final roster mapping: rank 21 raw='《》Z@Wi$Z@《》' -> Zawisza
+2026-01-16 22:58:09,037 DEBUG [-] warbot: Final roster mapping: rank 22 raw='ropuch13' -> ropuch13
+2026-01-16 22:58:09,037 DEBUG [-] warbot: Final roster mapping: rank 23 raw='★QuASTER★™' -> Quaster
+2026-01-16 22:58:09,037 DEBUG [-] warbot: Final roster mapping: rank 24 raw='max72' -> max72
+2026-01-16 22:58:09,037 DEBUG [-] warbot: Final roster mapping: rank 25 raw='Waśka' -> Waśka
+2026-01-16 22:58:09,037 DEBUG [-] warbot: Final roster mapping: rank 26 raw='Tołek' -> Tolek
+2026-01-16 22:58:09,038 DEBUG [-] warbot: Final roster mapping: rank 27 raw='ßuśh22' -> Bush22
+2026-01-16 22:58:09,038 DEBUG [-] warbot: Final roster mapping: rank 28 raw='Laluś' -> Laluś
+2026-01-16 22:58:09,038 DEBUG [-] warbot: Final roster mapping: rank 29 raw='grubson87®' -> grubson87®
+2026-01-16 22:58:25,340 DEBUG [-] warbot: Roster resolver: rank=1 raw='LoRdziK' cleaned='LoRdziK' canonical='lordzik' model_norm=None
+2026-01-16 22:58:25,341 DEBUG [-] warbot:   candidate via exact(cleaned): LoRdZik score=925
+2026-01-16 22:58:25,342 DEBUG [-] warbot:   fuzzy canonical variants: ['jordzih', 'jordzik', 'lordzih', 'lordzik', 'rordzik']
+2026-01-16 22:58:25,342 DEBUG [-] warbot:   candidate via fuzzy: LoRdZik score=102.0
+2026-01-16 22:58:25,343 DEBUG [-] warbot:   candidates sorted: [(925.0, 'LoRdZik')]
+2026-01-16 22:58:25,343 DEBUG [-] warbot: Roster resolver: rank=2 raw='Bamber' cleaned='Bamber' canonical='bamber' model_norm='Bamber'
+2026-01-16 22:58:25,343 DEBUG [-] warbot:   candidate via model_norm: Bamber score=1000
+2026-01-16 22:58:25,343 DEBUG [-] warbot:   candidate via exact(cleaned): Bamber score=925
+2026-01-16 22:58:25,343 DEBUG [-] warbot:   fuzzy canonical variants: ['bamber']
+2026-01-16 22:58:25,343 DEBUG [-] warbot:   candidate via fuzzy: Bamber score=102.0
+2026-01-16 22:58:25,343 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Bamber')]
+2026-01-16 22:58:25,343 DEBUG [-] warbot: Roster resolver: rank=3 raw='[g3w] NVRNV' cleaned='NVRNV' canonical='nvrnv' model_norm='NVRNV'
+2026-01-16 22:58:25,343 DEBUG [-] warbot:   candidate via model_norm: NVRNV score=1000
+2026-01-16 22:58:25,344 DEBUG [-] warbot:   candidate via exact(cleaned): NVRNV score=925
+2026-01-16 22:58:25,344 DEBUG [-] warbot:   fuzzy canonical variants: ['nnrnn', 'nrn', 'nvrnv', 'vrv', 'vvrvv']
+2026-01-16 22:58:25,344 DEBUG [-] warbot:   candidate via fuzzy: NVRNV score=102.0
+2026-01-16 22:58:25,344 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'NVRNV')]
+2026-01-16 22:58:25,344 DEBUG [-] warbot: Roster resolver: rank=4 raw='[g3ω] Geterus' cleaned='Geterus' canonical='geterus' model_norm='Geterus'
+2026-01-16 22:58:25,345 DEBUG [-] warbot:   candidate via model_norm: Geterus score=1000
+2026-01-16 22:58:25,345 DEBUG [-] warbot:   candidate via exact(cleaned): Geterus score=925
+2026-01-16 22:58:25,345 DEBUG [-] warbot:   fuzzy canonical variants: ['geteruo', 'geterus', 'weteruo', 'weterus']
+2026-01-16 22:58:25,345 DEBUG [-] warbot:   candidate via fuzzy: Geterus score=102.0
+2026-01-16 22:58:25,345 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Geterus')]
+2026-01-16 22:58:25,345 DEBUG [-] warbot: Roster resolver: rank=5 raw='[g3v] Krati' cleaned='Krati' canonical='krati' model_norm=None
+2026-01-16 22:58:25,345 DEBUG [-] warbot:   fuzzy canonical variants: ['hrata', 'hrati', 'krata', 'krati']
+2026-01-16 22:58:25,346 DEBUG [-] warbot:   no roster candidates
+2026-01-16 22:58:25,346 DEBUG [-] warbot: Roster resolver: rank=6 raw='ZgredeK' cleaned='ZgredeK' canonical='zgredek' model_norm=None
+2026-01-16 22:58:25,346 DEBUG [-] warbot:   candidate via exact(cleaned): Zgredek score=925
+2026-01-16 22:58:25,346 DEBUG [-] warbot:   fuzzy canonical variants: ['zgredeh', 'zgredek']
+2026-01-16 22:58:25,346 DEBUG [-] warbot:   candidate via fuzzy: Zgredek score=102.0
+2026-01-16 22:58:25,347 DEBUG [-] warbot:   candidates sorted: [(925.0, 'Zgredek')]
+2026-01-16 22:58:25,347 DEBUG [-] warbot: Roster resolver: rank=7 raw='Bo100n' cleaned='Bo100n' canonical='boioon' model_norm='Bo100n'
+2026-01-16 22:58:25,347 DEBUG [-] warbot:   candidate via model_norm: Bo100n score=1000
+2026-01-16 22:58:25,347 DEBUG [-] warbot:   candidate via exact(cleaned): Bo100n score=925
+2026-01-16 22:58:25,347 DEBUG [-] warbot:   fuzzy canonical variants: ['boion', 'boioon', 'boioov', 'boiov']
+2026-01-16 22:58:25,347 DEBUG [-] warbot:   candidate via fuzzy: Bo100n score=102.0
+2026-01-16 22:58:25,347 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Bo100n')]
+2026-01-16 22:58:25,347 DEBUG [-] warbot: Roster resolver: rank=8 raw='Gustaw jeleń' cleaned='Gustaw jeleń' canonical='gustawjelen' model_norm='Gustaw jeleń'
+2026-01-16 22:58:25,348 DEBUG [-] warbot:   candidate via model_norm: Gustaw jeleń score=1000
+2026-01-16 22:58:25,348 DEBUG [-] warbot:   candidate via exact(cleaned): Gustaw jeleń score=925
+2026-01-16 22:58:25,348 DEBUG [-] warbot:   fuzzy canonical variants: ['gustawjelen', 'gustawjelev', 'gustiwjelen', 'gustiwjelev', 'wustawjelen', 'wustawjelev', 'wustiwjelen']
+2026-01-16 22:58:25,348 DEBUG [-] warbot:   candidate via fuzzy: Gustaw jeleń score=102.0
+2026-01-16 22:58:25,349 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Gustaw jeleń')]
+2026-01-16 22:58:25,349 DEBUG [-] warbot: Roster resolver: rank=9 raw='Malef' cleaned='Malef' canonical='malef' model_norm='Malef'
+2026-01-16 22:58:25,349 DEBUG [-] warbot:   candidate via model_norm: Malef score=1000
+2026-01-16 22:58:25,349 DEBUG [-] warbot:   candidate via exact(cleaned): Malef score=925
+2026-01-16 22:58:25,349 DEBUG [-] warbot:   fuzzy canonical variants: ['malef']
+2026-01-16 22:58:25,349 DEBUG [-] warbot:   candidate via fuzzy: Malef score=102.0
+2026-01-16 22:58:25,349 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Malef')]
+2026-01-16 22:58:25,349 DEBUG [-] warbot: Roster resolver: rank=10 raw='Stachu' cleaned='Stachu' canonical='stachu' model_norm='Stachu'
+2026-01-16 22:58:25,349 DEBUG [-] warbot:   candidate via model_norm: Stachu score=1000
+2026-01-16 22:58:25,349 DEBUG [-] warbot:   candidate via exact(cleaned): Stachu score=925
+2026-01-16 22:58:25,349 DEBUG [-] warbot:   fuzzy canonical variants: ['stachu', 'stacku']
+2026-01-16 22:58:25,350 DEBUG [-] warbot:   candidate via fuzzy: Stachu score=102.0
+2026-01-16 22:58:25,350 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Stachu')]
+2026-01-16 22:58:25,350 DEBUG [-] warbot: Roster resolver: rank=11 raw='яасσ' cleaned='яасσ' canonical='raco' model_norm=None
+2026-01-16 22:58:25,350 DEBUG [-] warbot:   candidate via alias: raw='яасσ' -> 'Jaro' -> Jaro score=950
+2026-01-16 22:58:25,350 DEBUG [-] warbot:   fuzzy canonical variants: ['jaco', 'jacs', 'jaro', 'jars', 'raco', 'racs', 'raro']
+2026-01-16 22:58:25,351 DEBUG [-] warbot:   candidate via fuzzy: Jaro score=102.0
+2026-01-16 22:58:25,351 DEBUG [-] warbot:   candidates sorted: [(950.0, 'Jaro')]
+2026-01-16 22:58:25,351 DEBUG [-] warbot: Roster resolver: rank=12 raw='czyro' cleaned='czyro' canonical='czyro' model_norm='czyro'
+2026-01-16 22:58:25,351 DEBUG [-] warbot:   candidate via model_norm: czyro score=1000
+2026-01-16 22:58:25,351 DEBUG [-] warbot:   candidate via exact(cleaned): czyro score=925
+2026-01-16 22:58:25,351 DEBUG [-] warbot:   fuzzy canonical variants: ['czyro', 'czyrs']
+2026-01-16 22:58:25,351 DEBUG [-] warbot:   candidate via fuzzy: czyro score=102.0
+2026-01-16 22:58:25,352 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'czyro')]
+2026-01-16 22:58:25,352 DEBUG [-] warbot: Roster resolver: rank=13 raw='gąśhı' cleaned='gąśhı' canonical='gashi' model_norm=None
+2026-01-16 22:58:25,352 DEBUG [-] warbot:   candidate via alias: raw='gąśhı' -> 'Washi' -> Washi score=950
+2026-01-16 22:58:25,352 DEBUG [-] warbot:   fuzzy canonical variants: ['gasha', 'gashi', 'gaska', 'gaski', 'washa', 'washi', 'waski']
+2026-01-16 22:58:25,353 DEBUG [-] warbot:   candidate via fuzzy: Washi score=102.0
+2026-01-16 22:58:25,353 DEBUG [-] warbot:   candidate via fuzzy: Waśka score=88.9
+2026-01-16 22:58:25,353 DEBUG [-] warbot:   candidates sorted: [(950.0, 'Washi'), (88.88888888888889, 'Waśka')]
+2026-01-16 22:58:25,353 DEBUG [-] warbot: Roster resolver: rank=14 raw='Leon' cleaned='Leon' canonical='leon' model_norm='Leon'
+2026-01-16 22:58:25,353 DEBUG [-] warbot:   candidate via model_norm: Leon score=1000
+2026-01-16 22:58:25,353 DEBUG [-] warbot:   candidate via exact(cleaned): Leon score=925
+2026-01-16 22:58:25,354 DEBUG [-] warbot:   fuzzy canonical variants: ['jeon', 'jeov', 'leon', 'leov', 'reon']
+2026-01-16 22:58:25,354 DEBUG [-] warbot:   candidate via fuzzy: Leon score=102.0
+2026-01-16 22:58:25,354 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Leon')]
+2026-01-16 22:58:25,354 DEBUG [-] warbot: Roster resolver: rank=15 raw='Thęvił' cleaned='Thęvił' canonical='thevil' model_norm=None
+2026-01-16 22:58:25,354 DEBUG [-] warbot:   fuzzy canonical variants: ['thenil', 'thevil', 'tkenil', 'tkevil']
+2026-01-16 22:58:25,355 DEBUG [-] warbot:   candidate via fuzzy: Thevil score=102.0
+2026-01-16 22:58:25,355 DEBUG [-] warbot:   candidates sorted: [(102.0, 'Thevil')]
+2026-01-16 22:58:25,355 DEBUG [-] warbot: Roster resolver: rank=16 raw='łeɡeɳdąrny' cleaned='łeɡeɳdąrny' canonical='legedarny' model_norm=None
+2026-01-16 22:58:25,355 DEBUG [-] warbot:   fuzzy canonical variants: ['jegedarny', 'jegedarvy', 'jegendarny', 'legedarny', 'legedarvy', 'legendarny', 'legevdarvy', 'regedarny']
+2026-01-16 22:58:25,356 DEBUG [-] warbot:   candidate via fuzzy: Legendarny score=102.0
+2026-01-16 22:58:25,356 DEBUG [-] warbot:   candidates sorted: [(102.0, 'Legendarny')]
+2026-01-16 22:58:25,356 DEBUG [-] warbot: Roster resolver: rank=17 raw='NoMercy' cleaned='NoMercy' canonical='nomercy' model_norm='NoMercy'
+2026-01-16 22:58:25,356 DEBUG [-] warbot:   candidate via model_norm: NoMercy score=1000
+2026-01-16 22:58:25,357 DEBUG [-] warbot:   candidate via exact(cleaned): NoMercy score=925
+2026-01-16 22:58:25,357 DEBUG [-] warbot:   fuzzy canonical variants: ['nomercy', 'vomercy']
+2026-01-16 22:58:25,357 DEBUG [-] warbot:   candidate via fuzzy: NoMercy score=102.0
+2026-01-16 22:58:25,357 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'NoMercy')]
+2026-01-16 22:58:25,357 DEBUG [-] warbot: Roster resolver: rank=18 raw='Zise' cleaned='Zise' canonical='zise' model_norm='Zise'
+2026-01-16 22:58:25,357 DEBUG [-] warbot:   candidate via model_norm: Zise score=1000
+2026-01-16 22:58:25,357 DEBUG [-] warbot:   candidate via exact(cleaned): Zise score=925
+2026-01-16 22:58:25,357 DEBUG [-] warbot:   fuzzy canonical variants: ['zise']
+2026-01-16 22:58:25,357 DEBUG [-] warbot:   candidate via fuzzy: Zise score=102.0
+2026-01-16 22:58:25,358 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Zise')]
+2026-01-16 22:58:25,358 DEBUG [-] warbot: Roster resolver: rank=19 raw='Blacksmith' cleaned='Blacksmith' canonical='blacksmith' model_norm='Blacksmith'
+2026-01-16 22:58:25,358 DEBUG [-] warbot:   candidate via model_norm: Blacksmith score=1000
+2026-01-16 22:58:25,358 DEBUG [-] warbot:   candidate via exact(cleaned): Blacksmith score=925
+2026-01-16 22:58:25,358 DEBUG [-] warbot:   fuzzy canonical variants: ['blachsmith', 'blacksmith', 'blacksmitk']
+2026-01-16 22:58:25,358 DEBUG [-] warbot:   candidate via fuzzy: Blacksmith score=102.0
+2026-01-16 22:58:25,358 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Blacksmith')]
+2026-01-16 22:58:25,358 DEBUG [-] warbot: Roster resolver: rank=20 raw='maðeνił' cleaned='maðeνił' canonical='madevil' model_norm=None
+2026-01-16 22:58:25,359 DEBUG [-] warbot:   fuzzy canonical variants: ['madenil', 'madevil']
+2026-01-16 22:58:25,359 DEBUG [-] warbot:   candidate via fuzzy: Madevil score=102.0
+2026-01-16 22:58:25,359 DEBUG [-] warbot:   candidates sorted: [(102.0, 'Madevil')]
+2026-01-16 22:58:25,359 DEBUG [-] warbot: Roster resolver: rank=21 raw='《》Z@Wi$Z@《》' cleaned='《》Z@Wi$Z@《》' canonical='zawisza' model_norm=None
+2026-01-16 22:58:25,359 DEBUG [-] warbot:   fuzzy canonical variants: ['zawisza', 'zawiszi', 'ziwisza', 'ziwiszi']
+2026-01-16 22:58:25,360 DEBUG [-] warbot:   candidate via fuzzy: Zawisza score=102.0
+2026-01-16 22:58:25,360 DEBUG [-] warbot:   candidates sorted: [(102.0, 'Zawisza')]
+2026-01-16 22:58:25,360 DEBUG [-] warbot: Roster resolver: rank=22 raw='ropuch13' cleaned='ropuch13' canonical='ropuchi3' model_norm='ropuch13'
+2026-01-16 22:58:25,360 DEBUG [-] warbot:   candidate via model_norm: ropuch13 score=1000
+2026-01-16 22:58:25,360 DEBUG [-] warbot:   candidate via exact(cleaned): ropuch13 score=925
+2026-01-16 22:58:25,360 DEBUG [-] warbot:   fuzzy canonical variants: ['jopuchi3', 'jopucki3', 'ropuchi3', 'ropucki3']
+2026-01-16 22:58:25,360 DEBUG [-] warbot:   candidate via fuzzy: ropuch13 score=102.0
+2026-01-16 22:58:25,361 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'ropuch13')]
+2026-01-16 22:58:25,361 DEBUG [-] warbot: Roster resolver: rank=23 raw='★QuASTER★™' cleaned='★QuASTER★TM' canonical='quaster' model_norm='Quaster'
+2026-01-16 22:58:25,361 DEBUG [-] warbot:   candidate via model_norm: Quaster score=1000
+2026-01-16 22:58:25,361 DEBUG [-] warbot:   fuzzy canonical variants: ['quaster']
+2026-01-16 22:58:25,361 DEBUG [-] warbot:   candidate via fuzzy: Quaster score=102.0
+2026-01-16 22:58:25,361 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Quaster')]
+2026-01-16 22:58:25,361 DEBUG [-] warbot: Roster resolver: rank=24 raw='max72' cleaned='max72' canonical='max72' model_norm='max72'
+2026-01-16 22:58:25,361 DEBUG [-] warbot:   candidate via model_norm: max72 score=1000
+2026-01-16 22:58:25,361 DEBUG [-] warbot:   candidate via exact(cleaned): max72 score=925
+2026-01-16 22:58:25,361 DEBUG [-] warbot:   fuzzy canonical variants: ['max72']
+2026-01-16 22:58:25,362 DEBUG [-] warbot:   candidate via fuzzy: max72 score=102.0
+2026-01-16 22:58:25,362 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'max72')]
+2026-01-16 22:58:25,362 DEBUG [-] warbot: Roster resolver: rank=25 raw='Waśka' cleaned='Waśka' canonical='waska' model_norm='Waśka'
+2026-01-16 22:58:25,362 DEBUG [-] warbot:   candidate via model_norm: Waśka score=1000
+2026-01-16 22:58:25,362 DEBUG [-] warbot:   candidate via exact(cleaned): Waśka score=925
+2026-01-16 22:58:25,362 DEBUG [-] warbot:   fuzzy canonical variants: ['gasha', 'gaska', 'gaski', 'washa', 'washi', 'waska', 'waski']
+2026-01-16 22:58:25,363 DEBUG [-] warbot:   candidate via fuzzy: Washi score=100.0
+2026-01-16 22:58:25,363 DEBUG [-] warbot:   candidate via fuzzy: Waśka score=102.0
+2026-01-16 22:58:25,363 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Waśka'), (100.0, 'Washi')]
+2026-01-16 22:58:25,363 DEBUG [-] warbot: Roster resolver: rank=26 raw='Tołek' cleaned='Tołek' canonical='tolek' model_norm=None
+2026-01-16 22:58:25,363 DEBUG [-] warbot:   fuzzy canonical variants: ['toleh', 'tolek']
+2026-01-16 22:58:25,363 DEBUG [-] warbot:   candidate via fuzzy: Tolek score=102.0
+2026-01-16 22:58:25,363 DEBUG [-] warbot:   candidates sorted: [(102.0, 'Tolek')]
+2026-01-16 22:58:25,363 DEBUG [-] warbot: Roster resolver: rank=27 raw='ßuśh22' cleaned='ßuśh22' canonical='bush22' model_norm=None
+2026-01-16 22:58:25,364 DEBUG [-] warbot:   candidate via alias: raw='ßuśh22' -> 'Bush22' -> Bush22 score=950
+2026-01-16 22:58:25,364 DEBUG [-] warbot:   fuzzy canonical variants: ['bush2', 'bush22', 'busk2', 'busk22']
+2026-01-16 22:58:25,364 DEBUG [-] warbot:   candidate via fuzzy: Bush22 score=102.0
+2026-01-16 22:58:25,364 DEBUG [-] warbot:   candidates sorted: [(950.0, 'Bush22')]
+2026-01-16 22:58:25,364 DEBUG [-] warbot: Roster resolver: rank=28 raw='Laluś' cleaned='Laluś' canonical='lalus' model_norm='Laluś'
+2026-01-16 22:58:25,364 DEBUG [-] warbot:   candidate via model_norm: Laluś score=1000
+2026-01-16 22:58:25,364 DEBUG [-] warbot:   candidate via exact(cleaned): Laluś score=925
+2026-01-16 22:58:25,365 DEBUG [-] warbot:   fuzzy canonical variants: ['jaluo', 'jalus', 'laluo', 'lalus', 'ralus']
+2026-01-16 22:58:25,365 DEBUG [-] warbot:   candidate via fuzzy: Laluś score=102.0
+2026-01-16 22:58:25,365 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'Laluś')]
+2026-01-16 22:58:25,365 DEBUG [-] warbot: Roster resolver: rank=29 raw='grubson87®' cleaned='grubson87®' canonical='grubson87' model_norm='grubson87®'
+2026-01-16 22:58:25,365 DEBUG [-] warbot:   candidate via model_norm: grubson87® score=1000
+2026-01-16 22:58:25,365 DEBUG [-] warbot:   candidate via exact(cleaned): grubson87® score=925
+2026-01-16 22:58:25,365 DEBUG [-] warbot:   fuzzy canonical variants: ['grubson87', 'grubsov87', 'wrubson87', 'wrubsov87']
+2026-01-16 22:58:25,366 DEBUG [-] warbot:   candidate via fuzzy: grubson87® score=102.0
+2026-01-16 22:58:25,366 DEBUG [-] warbot:   candidates sorted: [(1000.0, 'grubson87®')]
+2026-01-16 22:58:25,366 DEBUG [-] warbot: Pre-assign exact-case: rank 2 cleaned='Bamber' -> Bamber
+2026-01-16 22:58:25,366 DEBUG [-] warbot: Pre-assign exact-case: rank 3 cleaned='NVRNV' -> NVRNV
+2026-01-16 22:58:25,366 DEBUG [-] warbot: Pre-assign exact-case: rank 4 cleaned='Geterus' -> Geterus
+2026-01-16 22:58:25,366 DEBUG [-] warbot: Pre-assign exact-case: rank 7 cleaned='Bo100n' -> Bo100n
+2026-01-16 22:58:25,366 DEBUG [-] warbot: Pre-assign exact-case: rank 8 cleaned='Gustaw jeleń' -> Gustaw jeleń
+2026-01-16 22:58:25,366 DEBUG [-] warbot: Pre-assign exact-case: rank 9 cleaned='Malef' -> Malef
+2026-01-16 22:58:25,366 DEBUG [-] warbot: Pre-assign exact-case: rank 10 cleaned='Stachu' -> Stachu
+2026-01-16 22:58:25,367 DEBUG [-] warbot: Pre-assign exact-case: rank 12 cleaned='czyro' -> czyro
+2026-01-16 22:58:25,367 DEBUG [-] warbot: Pre-assign exact-case: rank 14 cleaned='Leon' -> Leon
+2026-01-16 22:58:25,367 DEBUG [-] warbot: Pre-assign exact-case: rank 17 cleaned='NoMercy' -> NoMercy
+2026-01-16 22:58:25,367 DEBUG [-] warbot: Pre-assign exact-case: rank 18 cleaned='Zise' -> Zise
+2026-01-16 22:58:25,367 DEBUG [-] warbot: Pre-assign exact-case: rank 19 cleaned='Blacksmith' -> Blacksmith
+2026-01-16 22:58:25,367 DEBUG [-] warbot: Pre-assign exact-case: rank 22 cleaned='ropuch13' -> ropuch13
+2026-01-16 22:58:25,367 DEBUG [-] warbot: Pre-assign exact-case: rank 24 cleaned='max72' -> max72
+2026-01-16 22:58:25,367 DEBUG [-] warbot: Pre-assign exact-case: rank 25 cleaned='Waśka' -> Waśka
+2026-01-16 22:58:25,367 DEBUG [-] warbot: Pre-assign exact-case: rank 28 cleaned='Laluś' -> Laluś
+2026-01-16 22:58:25,367 DEBUG [-] warbot: Pre-assign exact-case: rank 29 cleaned='grubson87®' -> grubson87®
+2026-01-16 22:58:25,367 DEBUG [-] warbot: Assign pass: best_rank=23 candidate=Quaster score=1000.0
+2026-01-16 22:58:25,367 DEBUG [-] warbot:   assigned rank 23 -> Quaster
+2026-01-16 22:58:25,367 DEBUG [-] warbot: Assign pass: best_rank=11 candidate=Jaro score=950.0
+2026-01-16 22:58:25,367 DEBUG [-] warbot:   assigned rank 11 -> Jaro
+2026-01-16 22:58:25,367 DEBUG [-] warbot: Assign pass: best_rank=13 candidate=Washi score=950.0
+2026-01-16 22:58:25,367 DEBUG [-] warbot:   assigned rank 13 -> Washi
+2026-01-16 22:58:25,367 DEBUG [-] warbot: Assign pass: best_rank=27 candidate=Bush22 score=950.0
+2026-01-16 22:58:25,367 DEBUG [-] warbot:   assigned rank 27 -> Bush22
+2026-01-16 22:58:25,368 DEBUG [-] warbot: Assign pass: best_rank=1 candidate=LoRdZik score=925.0
+2026-01-16 22:58:25,368 DEBUG [-] warbot:   assigned rank 1 -> LoRdZik
+2026-01-16 22:58:25,368 DEBUG [-] warbot: Assign pass: best_rank=6 candidate=Zgredek score=925.0
+2026-01-16 22:58:25,368 DEBUG [-] warbot:   assigned rank 6 -> Zgredek
+2026-01-16 22:58:25,368 DEBUG [-] warbot: Assign pass: best_rank=15 candidate=Thevil score=102.0
+2026-01-16 22:58:25,368 DEBUG [-] warbot:   assigned rank 15 -> Thevil
+2026-01-16 22:58:25,368 DEBUG [-] warbot: Assign pass: best_rank=16 candidate=Legendarny score=102.0
+2026-01-16 22:58:25,368 DEBUG [-] warbot:   assigned rank 16 -> Legendarny
+2026-01-16 22:58:25,368 DEBUG [-] warbot: Assign pass: best_rank=20 candidate=Madevil score=102.0
+2026-01-16 22:58:25,368 DEBUG [-] warbot:   assigned rank 20 -> Madevil
+2026-01-16 22:58:25,368 DEBUG [-] warbot: Assign pass: best_rank=21 candidate=Zawisza score=102.0
+2026-01-16 22:58:25,368 DEBUG [-] warbot:   assigned rank 21 -> Zawisza
+2026-01-16 22:58:25,368 DEBUG [-] warbot: Assign pass: best_rank=26 candidate=Tolek score=102.0
+2026-01-16 22:58:25,388 DEBUG [-] warbot:   assigned rank 26 -> Tolek
+2026-01-16 22:58:25,388 DEBUG [-] warbot: Final roster mapping: rank 1 raw='LoRdziK' -> LoRdZik
+2026-01-16 22:58:25,389 DEBUG [-] warbot: Final roster mapping: rank 2 raw='Bamber' -> Bamber
+2026-01-16 22:58:25,389 DEBUG [-] warbot: Final roster mapping: rank 3 raw='[g3w] NVRNV' -> NVRNV
+2026-01-16 22:58:25,389 DEBUG [-] warbot: Final roster mapping: rank 4 raw='[g3ω] Geterus' -> Geterus
+2026-01-16 22:58:25,389 DEBUG [-] warbot: Final roster mapping: rank 5 raw='[g3v] Krati' -> OUT_OF_ROSTER(Krati)
+2026-01-16 22:58:25,389 DEBUG [-] warbot: Final roster mapping: rank 6 raw='ZgredeK' -> Zgredek
+2026-01-16 22:58:25,389 DEBUG [-] warbot: Final roster mapping: rank 7 raw='Bo100n' -> Bo100n
+2026-01-16 22:58:25,389 DEBUG [-] warbot: Final roster mapping: rank 8 raw='Gustaw jeleń' -> Gustaw jeleń
+2026-01-16 22:58:25,389 DEBUG [-] warbot: Final roster mapping: rank 9 raw='Malef' -> Malef
+2026-01-16 22:58:25,389 DEBUG [-] warbot: Final roster mapping: rank 10 raw='Stachu' -> Stachu
+2026-01-16 22:58:25,389 DEBUG [-] warbot: Final roster mapping: rank 11 raw='яасσ' -> Jaro
+2026-01-16 22:58:25,389 DEBUG [-] warbot: Final roster mapping: rank 12 raw='czyro' -> czyro
+2026-01-16 22:58:25,389 DEBUG [-] warbot: Final roster mapping: rank 13 raw='gąśhı' -> Washi
+2026-01-16 22:58:25,389 DEBUG [-] warbot: Final roster mapping: rank 14 raw='Leon' -> Leon
+2026-01-16 22:58:25,389 DEBUG [-] warbot: Final roster mapping: rank 15 raw='Thęvił' -> Thevil
+2026-01-16 22:58:25,389 DEBUG [-] warbot: Final roster mapping: rank 16 raw='łeɡeɳdąrny' -> Legendarny
+2026-01-16 22:58:25,389 DEBUG [-] warbot: Final roster mapping: rank 17 raw='NoMercy' -> NoMercy
+2026-01-16 22:58:25,389 DEBUG [-] warbot: Final roster mapping: rank 18 raw='Zise' -> Zise
+2026-01-16 22:58:25,389 DEBUG [-] warbot: Final roster mapping: rank 19 raw='Blacksmith' -> Blacksmith
+2026-01-16 22:58:25,389 DEBUG [-] warbot: Final roster mapping: rank 20 raw='maðeνił' -> Madevil
+2026-01-16 22:58:25,389 DEBUG [-] warbot: Final roster mapping: rank 21 raw='《》Z@Wi$Z@《》' -> Zawisza
+2026-01-16 22:58:25,390 DEBUG [-] warbot: Final roster mapping: rank 22 raw='ropuch13' -> ropuch13
+2026-01-16 22:58:25,390 DEBUG [-] warbot: Final roster mapping: rank 23 raw='★QuASTER★™' -> Quaster
+2026-01-16 22:58:25,390 DEBUG [-] warbot: Final roster mapping: rank 24 raw='max72' -> max72
+2026-01-16 22:58:25,390 DEBUG [-] warbot: Final roster mapping: rank 25 raw='Waśka' -> Waśka
+2026-01-16 22:58:25,390 DEBUG [-] warbot: Final roster mapping: rank 26 raw='Tołek' -> Tolek
+2026-01-16 22:58:25,390 DEBUG [-] warbot: Final roster mapping: rank 27 raw='ßuśh22' -> Bush22
+2026-01-16 22:58:25,390 DEBUG [-] warbot: Final roster mapping: rank 28 raw='Laluś' -> Laluś
+2026-01-16 22:58:25,390 DEBUG [-] warbot: Final roster mapping: rank 29 raw='grubson87®' -> grubson87®
