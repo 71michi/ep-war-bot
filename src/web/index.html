@@ -298,11 +298,16 @@
 
     const render = () => {
       const x = Number(sel.value || 1);
-      const slice = wars.slice(0, x); // wars are newest-first
+      // Średnia ma być liczona z X NAJŚWIEŻSZYCH wojen (po dacie dodania screenów na Discordzie),
+      // niezależnie od aktualnego sortowania/filtrów tabeli na stronie.
+      const warsSorted = wars.slice().sort((a, b) => Number(b.created_at_ts || 0) - Number(a.created_at_ts || 0));
+      const slice = warsSorted.slice(0, x);
 
-      const pointsByName = new Map();
+      // For averages we count only wars where the player is present in the list.
+      // (We do NOT divide by X if the player did not participate.)
+      const statsByName = new Map();
       for (const name of roster) {
-        pointsByName.set(name, []);
+        statsByName.set(name, { sum: 0, count: 0 });
       }
 
       for (const w of slice) {
@@ -311,18 +316,20 @@
           map.set(p.name, Number(p.points || 0));
         }
         for (const name of roster) {
-          const pts = map.get(name) || 0;
-          pointsByName.get(name).push(pts);
+          if (map.has(name)) {
+            const pts = map.get(name) || 0;
+            const s = statsByName.get(name);
+            s.sum += pts;
+            s.count += 1;
+          }
         }
       }
 
       const rows = roster.map(name => {
-        const arr = pointsByName.get(name) || [];
-        const sum = arr.reduce((a,b)=>a+b,0);
-        const avg = arr.length ? (sum / arr.length) : 0;
-        const warsWithPts = arr.filter(v => v > 0).length;
-        return { name, avg, sum, warsWithPts };
-      }).sort((a,b)=> b.avg - a.avg);
+        const s = statsByName.get(name) || { sum: 0, count: 0 };
+        const avg = s.count ? (s.sum / s.count) : 0;
+        return { name, avg, sum: s.sum, warsCount: s.count };
+      }).sort((a,b)=> (b.avg - a.avg) || (b.sum - a.sum) || a.name.localeCompare(b.name));
 
       const top = rows.slice(0, 5);
       const rest = rows.slice(5);
@@ -335,7 +342,7 @@
           <td>${escapeHtml(r.name)}</td>
           <td class="right">${r.avg.toFixed(1)}</td>
           <td class="right">${r.sum}</td>
-          <td class="right">${r.warsWithPts}/${x}</td>
+          <td class="right">${r.warsCount}/${x}</td>
         `;
         tbody.appendChild(tr);
       }
@@ -352,7 +359,7 @@
             <td>${escapeHtml(r.name)}</td>
             <td class="right">${r.avg.toFixed(1)}</td>
             <td class="right">${r.sum}</td>
-            <td class="right">${r.warsWithPts}/${x}</td>
+            <td class="right">${r.warsCount}/${x}</td>
           `;
           moreTbody.appendChild(tr);
         }
