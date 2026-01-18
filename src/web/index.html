@@ -73,6 +73,7 @@
     .war-details-header { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
     .war-meta { display: inline-flex; gap: 6px; align-items: center; }
     .war-meta code { background: rgba(255,255,255,0.03); border: 1px solid #2a3443; padding: 1px 6px; border-radius: 999px; }
+    .players-wrap { overflow: auto; }
     .players-table { width: 100%; border-collapse: collapse; border: 1px solid #222a35; border-radius: 10px; overflow: hidden; }
     .players-table th, .players-table td { padding: 8px 10px; border-bottom: 1px solid #222a35; }
     .players-table th { background: rgba(255,255,255,0.02); color: #c9d2e0; font-weight: 650; }
@@ -109,6 +110,32 @@
     .wins { color: rgba(46, 204, 113, 0.95); font-weight: 700; }
     .draws { color: #a8b0bd; font-weight: 700; }
     .losses { color: rgba(231, 76, 60, 0.95); font-weight: 700; }
+
+    /* Mobile: szczegóły wojny bez przewijania lewo-prawo */
+    @media (max-width: 640px) {
+      body { margin: 10px; }
+      .card { padding: 10px; }
+
+      .war-details-header { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: start; }
+      .war-details-header .war-meta { grid-column: 1 / -1; }
+      .war-details-header .pill { font-size: 11px; padding: 2px 7px; }
+      .players-wrap { overflow: visible; }
+
+      /* Zamiana tabeli graczy na układ "karty" */
+      .players-table { border: 0; }
+      .players-table thead { display: none; }
+      .players-table, .players-table tbody, .players-table tr { display: block; width: 100%; }
+      .players-table tr { border: 1px solid #222a35; border-radius: 10px; margin: 8px 0; padding: 8px 10px; }
+      .players-table td { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border: 0; }
+      .players-table td::before { content: attr(data-label); color: #a8b0bd; font-size: 12px; }
+      .players-table td.right { justify-content: space-between; }
+      .players-table tr:hover td { background: transparent; }
+      .players-table tr.row-unknown td, .players-table tr.row-oor td { background: transparent; }
+
+      /* Ustawienia dla badge i punktów */
+      .rank-badge { min-width: 34px; }
+      .status-cell { white-space: normal; }
+    }
   </style>
 </head>
 <body>
@@ -354,10 +381,10 @@
 
         return `
           <tr class="${rowClass}" data-rank="${Number.isFinite(rankNum) ? rankNum : ''}" data-pts="${Number.isFinite(ptsNum) ? ptsNum : ''}" data-name="${escapeHtml(p.name ?? '')}">
-            <td class="right"><span class="rank-badge">${escapeHtml(rank)}</span></td>
-            <td>${name}</td>
-            <td class="right"><span class="pts">${pts}</span></td>
-            <td class="status-cell">${statusHtml || '<span class="muted small">—</span>'}</td>
+            <td class="right" data-label="#"><span class="rank-badge">${escapeHtml(rank)}</span></td>
+            <td data-label="Gracz">${name}</td>
+            <td class="right" data-label="Pkt"><span class="pts">${pts}</span></td>
+            <td class="status-cell" data-label="Status">${statusHtml || '<span class="muted small">—</span>'}</td>
           </tr>
         `;
       };
@@ -392,7 +419,7 @@
             <span class="pill">Różnica: ${escapeHtml(diffText)}</span>
             <span class="pill">Przeciwnik: ${escapeHtml(opp)}</span>
           </div>
-          <div style="overflow:auto;">
+          <div class="players-wrap">
             <table class="players-table">
               <thead>
                 <tr>
