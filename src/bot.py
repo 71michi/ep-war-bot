@@ -21,6 +21,7 @@ from .discord_persistence import (
     get_storage_channel, restore_snapshot, upload_snapshot,
     TAG_WARS, TAG_ROSTER_OVERRIDES, TAG_ROSTER_REMOVED,
 )
+from .discord_utils import delete_message_later
 from rapidfuzz import fuzz, process
 
 setup_logging()
@@ -163,6 +164,20 @@ def make_war_id(ref_message_id: int) -> str:
     # Keep it short but globally unique enough (Discord snowflakes are globally unique anyway).
     short = b36[-10:] if len(b36) > 10 else b36
     return f"WAR-{short}"
+
+
+def make_war_id_with_seq(ref_message_id: int, seq: int) -> str:
+    """War ID with a per-ref-message sequence suffix.
+
+    - seq<=1: keep legacy stable ID (WAR-XXXX)
+    - seq>1 : WAR-XXXX-2, WAR-XXXX-3, ...
+    """
+    base = make_war_id(ref_message_id)
+    try:
+        s = int(seq)
+    except Exception:
+        s = 1
+    return base if s <= 1 else f"{base}-{s}"
 
 
 def _flush_logs() -> None:
@@ -1421,18 +1436,6 @@ def chunk_message(msg: str, limit: int = 1900) -> List[str]:
     return chunks
 
 
-async def _delete_message_later(msg: discord.Message, delay_sec: int) -> None:
-    """Delete a Discord message after delay_sec seconds (best-effort)."""
-    try:
-        await asyncio.sleep(max(0, int(delay_sec)))
-        await msg.delete()
-    except (discord.NotFound, discord.Forbidden):
-        return
-    except Exception:
-        # Never crash the bot because of a cleanup task.
-        logger.debug("Failed to auto-delete message", exc_info=True)
-
-
 def _set_current_status_block(text: str, status_line: str) -> str:
     """Ensure LISTWAR message ends with a single '**Aktualny status:** ...' line."""
     base = (text or "").rstrip()
@@ -1920,7 +1923,8 @@ def _extract_war_id_from_text(text: str) -> Optional[str]:
     m = re.search(r"\bID:\s*`([^`]+)`", text)
     if m:
         return m.group(1).strip()
-    m2 = re.search(r"\b(WAR-\w+)\b", text)
+    # Allow suffixes like WAR-ABCDEF-2
+    m2 = re.search(r"\b(WAR-[A-Z0-9-]+)\b", text, flags=re.IGNORECASE)
     if m2:
         return m2.group(1).strip()
     return None
@@ -1951,6 +1955,7 @@ async def try_apply_help_channel_command(
         "• `23 Nick 250` — *(reply)* na wiadomość bota z listą: popraw nick i punkty na pozycji 23.\n"
         "• `23 Nick` — *(reply)* popraw tylko nick (punkty zostają).\n"
         "• `ADDWAR` — *(reply)* na poprawną listę bota: **zatwierdza** i dodaje wojnę do strony (CONFIRMED).\n"
+        "• `UNLISTWAR <ID>` — usuwa wojnę w statusie DRAFT (żeby zrobić LISTWAR ponownie i dostać nowe ID).\n"
         "• `REMOVEWAR <ID>` — usuwa wojnę ze strony (ID z nagłówka listy).\n"
         "\n"
         "**Roster**\n"
@@ -1975,7 +1980,7 @@ async def try_apply_help_channel_command(
     # Auto-delete help messages to keep channel clean.
     for sm in sent_msgs:
         try:
-            asyncio.create_task(_delete_message_later(sm, auto_del))
+            asyncio.create_task(delete_message_later(sm, auto_del))
         except Exception:
             pass
 
@@ -2026,6 +2031,97 @@ async def try_apply_removewar_channel_command(
             await message.channel.send(f"ℹ️ Nie znaleziono wojny: `{war_id}`")
     except Exception:
         logger.exception("REMOVEWAR: failed")
+
+    try:
+        await message.delete()
+    except Exception:
+        pass
+    return True
+
+
+async def try_apply_unlistwar_channel_command(
+    discord_client: discord.Client,
+    message: discord.Message,
+) -> bool:
+    """Handle channel command: UNLISTWAR <WAR-ID>.
+
+    Removes a war in status DRAFT only. This allows running LISTWAR again on the
+    same screenshots and receiving a new war ID.
+    """
+    if message.reference and message.reference.message_id:
+        return False
+
+    text = (message.content or "").strip()
+    m = re.match(r"^UNLISTWAR\s+(.+)$", text, flags=re.IGNORECASE)
+    if not m:
+        return False
+    war_id = (m.group(1) or "").replace("`", "").strip()
+    if not war_id:
+        return False
+
+    rec: Optional[Dict[str, object]] = None
+    try:
+        async with WAR_STORE_LOCK:
+            rec = await asyncio.to_thread(WAR_STORE.get_war, war_id)
+
+        if not isinstance(rec, dict):
+            await message.channel.send(f"ℹ️ Nie znaleziono wojny: `{war_id}`")
+            return True
+
+        status = str(rec.get("status") or "").lower()
+        if status != "draft":
+            if status == "confirmed":
+                await message.channel.send(
+                    f"ℹ️ `{war_id}` jest już zatwierdzona (CONFIRMED). Użyj `REMOVEWAR {war_id}` jeśli chcesz ją usunąć ze strony."
+                )
+            else:
+                await message.channel.send(
+                    f"ℹ️ `UNLISTWAR` działa tylko dla wojen w statusie DRAFT. Status `{war_id}`: `{status or 'unknown'}`"
+                )
+            return True
+
+        # Best-effort delete the LISTWAR bot message (if we have metadata).
+        try:
+            bot_msg_id = int(rec.get("bot_message_id") or 0)
+            ch_id = int(rec.get("channel_id") or 0)
+            if bot_msg_id and ch_id:
+                ch = discord_client.get_channel(ch_id)
+                if ch is None:
+                    try:
+                        ch = await discord_client.fetch_channel(ch_id)
+                    except Exception:
+                        ch = None
+                if isinstance(ch, (discord.TextChannel, discord.Thread)):
+                    try:
+                        bm = await ch.fetch_message(bot_msg_id)
+                        await bm.delete()
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+        # Clear parse cache for this source screenshot message (so next LISTWAR re-parses if desired).
+        try:
+            ref_mid = int(rec.get("ref_message_id") or 0)
+            if ref_mid:
+                WAR_PARSE_CACHE.pop(ref_mid, None)
+        except Exception:
+            pass
+
+        # Remove draft from store.
+        async with WAR_STORE_LOCK:
+            existed = await asyncio.to_thread(WAR_STORE.delete_war, war_id)
+        if existed:
+            try:
+                await _persist_progress_to_discord(discord_client, what="wars")
+            except Exception:
+                pass
+            await message.channel.send(f"🧹 Unlisted DRAFT: `{war_id}` (możesz zrobić LISTWAR ponownie, dostaniesz nowe ID)")
+        else:
+            await message.channel.send(f"ℹ️ Nie znaleziono wojny: `{war_id}`")
+
+    except Exception:
+        logger.exception("UNLISTWAR: failed")
 
     try:
         await message.delete()
@@ -2390,7 +2486,7 @@ def main():
             if not text:
                 return
             tok0_up = text.split()[0].upper()
-            if tok0_up not in {"ADDROSTER", "REMOVEROSTER", "CURRENTROSTER", "REMOVEWAR", "HELP"}:
+            if tok0_up not in {"ADDROSTER", "REMOVEROSTER", "CURRENTROSTER", "REMOVEWAR", "UNLISTWAR", "HELP"}:
                 return
 
         # Try to "claim" this command message to prevent duplicate responses
@@ -2470,6 +2566,15 @@ def main():
                     had_exception = True
 
                 try:
+                    handled = await try_apply_unlistwar_channel_command(client, message)
+                    if handled:
+                        logger.info("UNLISTWAR handled -> done")
+                        return
+                except Exception:
+                    logger.exception("Błąd podczas UNLISTWAR")
+                    had_exception = True
+
+                try:
                     handled = await try_apply_removewar_channel_command(client, message)
                     if handled:
                         logger.info("REMOVEWAR handled -> done")
@@ -2499,7 +2604,32 @@ def main():
                     await message.channel.send("Nie mogę znaleźć wiadomości, do której odpowiadasz (LISTWAR).")
                     return
 
-                war_id = make_war_id(ref_msg.id)
+                # Prefer reusing an existing active war_id for the same screenshot message.
+                # If the prior DRAFT was removed via UNLISTWAR, we will generate a new ID
+                # using a per-ref-message sequence counter (WAR-XXXX-2, ...).
+                war_id = None
+                try:
+                    async with WAR_STORE_LOCK:
+                        wars_list = await asyncio.to_thread(WAR_STORE.get_wars, True)
+                    for r in wars_list:
+                        try:
+                            if int(r.get("ref_message_id") or 0) != int(ref_msg.id):
+                                continue
+                        except Exception:
+                            continue
+                        st = str(r.get("status") or "").lower()
+                        if st in {"draft", "confirmed"}:
+                            wid = str(r.get("war_id") or "").strip()
+                            if wid:
+                                war_id = wid
+                                break
+                except Exception:
+                    war_id = None
+
+                if not war_id:
+                    async with WAR_STORE_LOCK:
+                        seq = await asyncio.to_thread(WAR_STORE.bump_ref_sequence, ref_msg.id)
+                    war_id = make_war_id_with_seq(ref_msg.id, seq)
 
                 atts = [a for a in ref_msg.attachments if is_image(a)]
                 if len(atts) < 2:

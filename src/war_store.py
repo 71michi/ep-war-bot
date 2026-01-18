@@ -148,6 +148,44 @@ class WarStore:
         rec = wars.get(war_id)
         return rec if isinstance(rec, dict) else None
 
+    # ----------------------------
+    # LISTWAR ref-message sequencing
+    # ----------------------------
+    #
+    # Users sometimes want to re-run LISTWAR for the same screenshot message and
+    # get a *new* war_id (e.g. after an UNLISTWAR reset). We keep a small
+    # per-ref-message sequence counter in the store to make new IDs deterministic
+    # and collision-free across restarts.
+
+    def get_ref_sequence(self, ref_message_id: int) -> int:
+        """Return current LISTWAR sequence for a referenced screenshot message."""
+        store = self.load()
+        seq = store.get("ref_sequences")
+        if not isinstance(seq, dict):
+            return 0
+        try:
+            return int(seq.get(str(int(ref_message_id)), 0) or 0)
+        except Exception:
+            return 0
+
+    def bump_ref_sequence(self, ref_message_id: int) -> int:
+        """Increment and persist LISTWAR sequence for a referenced screenshot message."""
+        store = self.load()
+        seq = store.get("ref_sequences")
+        if not isinstance(seq, dict):
+            seq = {}
+        key = str(int(ref_message_id))
+        cur = 0
+        try:
+            cur = int(seq.get(key, 0) or 0)
+        except Exception:
+            cur = 0
+        cur += 1
+        seq[key] = cur
+        store["ref_sequences"] = seq
+        self.save(store)
+        return cur
+
     def count(self) -> int:
         store = self.load()
         order: List[str] = list(store.get("order", []))

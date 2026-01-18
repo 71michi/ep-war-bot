@@ -10,6 +10,7 @@
 4. Jeżeli coś jest nie tak, poprawiasz Reply na wiadomość bota: `23 Nick 250` lub `23 Nick` (punkty zostają).
 5. Gdy lista jest poprawna, odpowiadasz na wiadomość bota komendą `ADDWAR` — dopiero wtedy wojna trafia na stronę (**CONFIRMED**).
 6. Usunięcie wojny ze strony: `REMOVEWAR <ID>`.
+7. Jeśli chcesz wyrzucić **DRAFT** (niezatwierdzoną) wojnę i zrobić `LISTWAR` ponownie dla tych samych screenów (z nowym ID): `UNLISTWAR <ID>`.
 
 Jeśli bot wyświetli sekcję „Wymagane poprawki”, możesz odpisać (Reply) na wiadomość bota:
 
@@ -95,3 +96,12 @@ W folderze `results/` powstaną:
 - `<case>.post.txt` – dokładnie to, co bot by wysłał na Discordzie
 - `<case>.raw.json` – surowe dane (summary/players/parsed_debug)
 - `<case>.log.txt` – szczegółowy log krok-po-kroku dla danego testu
+
+## Unit tests
+
+Minimalny zestaw testów jednostkowych znajduje się w `tests/`.
+
+```bash
+pip install -r requirements.txt -r requirements-dev.txt
+pytest -q
+```

@@ -34,6 +34,8 @@
     .details-row td { background: rgba(255,255,255,0.015); }
     .btn { background: transparent; border: 1px solid #2a3443; color: #e7e7e7; border-radius: 8px; padding: 6px 10px; cursor: pointer; }
     .btn:hover { background: rgba(255,255,255,0.03); }
+    .player-btn { background: transparent; border: 0; color: #e7e7e7; padding: 0; cursor: pointer; font: inherit; text-align: left; }
+    .player-btn:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
@@ -99,6 +101,7 @@
       <table id="rosterTable">
         <thead>
           <tr>
+            <th class="right">#</th>
             <th>Nick (roster)</th>
             <th class="right">Średnia</th>
             <th class="right">Suma</th>
@@ -304,18 +307,21 @@
       // (We do NOT divide by X if the player did not participate.)
       const statsByName = new Map();
       for (const name of roster) {
-        statsByName.set(name, { sum: 0, count: 0 });
+        statsByName.set(name, { sum: 0, count: 0, points: Array(x).fill(null) });
       }
 
-      for (const w of slice) {
+      for (let i = 0; i < slice.length; i++) {
+        const w = slice[i];
         const map = new Map();
         for (const p of (w.players || [])) {
           map.set(p.name, Number(p.points || 0));
         }
         for (const name of roster) {
+          const s = statsByName.get(name);
+          if (!s) continue;
           if (map.has(name)) {
-            const pts = map.get(name) || 0;
-            const s = statsByName.get(name);
+            const pts = Number(map.get(name) || 0);
+            s.points[i] = pts;
             s.sum += pts;
             s.count += 1;
           }
@@ -323,9 +329,9 @@
       }
 
       const rows = roster.map(name => {
-        const s = statsByName.get(name) || { sum: 0, count: 0 };
+        const s = statsByName.get(name) || { sum: 0, count: 0, points: Array(x).fill(null) };
         const avg = s.count ? (s.sum / s.count) : 0;
-        return { name, avg, sum: s.sum, warsCount: s.count };
+        return { name, avg, sum: s.sum, warsCount: s.count, points: s.points };
       }).sort((a,b)=> (b.avg - a.avg) || (b.sum - a.sum) || a.name.localeCompare(b.name));
 
       const top = rows.slice(0, 5);
@@ -337,17 +343,41 @@
 
       rows.forEach((r, idx) => {
         const tr = document.createElement('tr');
-        if (idx >= 5) {
+        const detailsTr = document.createElement('tr');
+        detailsTr.className = 'details-row';
+        detailsTr.style.display = 'none';
+
+        const isMore = idx >= 5;
+        if (isMore) {
           tr.classList.add('more-row');
+          detailsTr.classList.add('more-row');
           tr.style.display = 'none';
+          detailsTr.style.display = 'none';
         }
+
+        const pointsLine = (r.points || []).map(v => (v === null || v === undefined) ? '-' : String(v)).join('  |  ');
+        detailsTr.innerHTML = `<td colspan="5" class="small muted">Punkty (najnowsze → najstarsze): <code>${escapeHtml(pointsLine)}</code></td>`;
+
+        const nameBtn = document.createElement('button');
+        nameBtn.type = 'button';
+        nameBtn.className = 'player-btn';
+        nameBtn.textContent = r.name;
+        nameBtn.onclick = () => {
+          const open = detailsTr.style.display !== 'none';
+          detailsTr.style.display = open ? 'none' : '';
+        };
+
         tr.innerHTML = `
-          <td>${escapeHtml(r.name)}</td>
+          <td class="right">${idx + 1}</td>
+          <td></td>
           <td class="right">${r.avg.toFixed(1)}</td>
           <td class="right">${r.sum}</td>
           <td class="right">${r.warsCount}/${x}</td>
         `;
+        tr.children[1].appendChild(nameBtn);
+
         tbody.appendChild(tr);
+        tbody.appendChild(detailsTr);
       });
 
       const btn = document.getElementById('rosterToggleBtn');

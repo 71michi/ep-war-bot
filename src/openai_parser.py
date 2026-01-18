@@ -5,20 +5,19 @@ import re
 import logging
 from typing import List, Optional, Literal, Tuple, Dict
 
-from openai import OpenAI
+from .openai_client import get_openai_client
 from pydantic import BaseModel, Field
 from PIL import Image
 from PIL import ImageEnhance, ImageFilter
 from rapidfuzz import fuzz as rf_fuzz
 
 from .config import env_str, env_int, env_bool, env_float
+from .file_cache import load_json_cached
 from .nicknames import canonical_key
 from .logging_setup import setup_logging, set_trace_id, reset_trace_id
 
 setup_logging()
 logger = logging.getLogger("warbot.openai_parser")
-
-client = OpenAI()
 
 
 # ----------------------------
@@ -72,10 +71,6 @@ class ParsedImage(BaseModel):
     notes: Optional[str] = None
 
 
-class ExpectedMaxRankOnly(BaseModel):
-    expected_max_rank: Optional[int] = None
-
-
 # ----------------------------
 # Helpers
 # ----------------------------
@@ -109,15 +104,14 @@ def _to_data_url(image_bytes: bytes, mime: str = "image/png") -> str:
 
 
 def _load_roster(roster_path: str) -> list[str]:
-    try:
-        with open(roster_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        r = data.get("roster", [])
-        return [str(x) for x in r if str(x).strip()]
-    except FileNotFoundError:
-        return []
-    except json.JSONDecodeError:
-        return []
+    """Load roster.json using a small mtime cache.
+
+    This function is on a hot path (called from robust parsing and row-repair),
+    so caching avoids repeated disk I/O on every LISTWAR.
+    """
+    data = load_json_cached(roster_path, default={"roster": []})
+    r = data.get("roster", [])
+    return [str(x) for x in r if str(x).strip()]
 
 
 def _preprocess_chat_image(image_bytes: bytes) -> Image.Image:
@@ -214,7 +208,7 @@ def _detect_expected_max_rank(image_bytes: bytes, model: str) -> Optional[int]:
     logger.debug("Detecting expected_max_rank via bottom-crop OCR")
     logger.debug("expected_max_rank OCR request: bytes=%d model=%s", len(crop_bytes), model)
 
-    resp = client.responses.parse(
+    resp = get_openai_client().responses.parse(
         model=model,
         input=[
             {"role": "system", "content": "Jesteś OCR. Zwróć tylko expected_max_rank."},
@@ -268,7 +262,7 @@ ROSTER:
     timeout_s = env_int("OPENAI_TIMEOUT_SECONDS", 90)
 
     logger.debug("Parsing chat slice (%d bytes) with model=%s", len(slice_bytes), model)
-    resp = client.responses.parse(
+    resp = get_openai_client().responses.parse(
         model=model,
         input=[
             {"role": "system", "content": system_instructions},
@@ -663,7 +657,7 @@ def _extract_war_mode_fallback(image_bytes: bytes, model: str) -> Optional[str]:
         data_url = _to_data_url(crop_bytes)
 
         logger.debug("War mode fallback OCR crop (w=%d,h=%d) roi=(%d,%d,%d,%d)", w, h, x1, y1, x2, y2)
-        resp = client.responses.parse(
+        resp = get_openai_client().responses.parse(
             model=model,
             input=[
                 {"role": "system", "content": "Jesteś OCR. Zwróć tylko pole war_mode."},
@@ -743,7 +737,7 @@ Zasady:
     timeout_s = env_int("OPENAI_TIMEOUT_SECONDS", 90)
 
     logger.debug("OpenAI structured parse: sending image (%d bytes)", len(image_bytes))
-    resp = client.responses.parse(
+    resp = get_openai_client().responses.parse(
         model=model,
         input=[
             {"role": "system", "content": system_instructions},
