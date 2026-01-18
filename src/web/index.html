@@ -31,24 +31,18 @@
     .right { text-align: right; }
     .toggle { background: transparent; border: 1px solid #2a3443; color: #e7e7e7; border-radius: 8px; padding: 4px 8px; cursor: pointer; }
     .toggle:hover { background: rgba(255,255,255,0.03); }
+
+    /* Average table row toggle */
+    .avg-row { cursor: pointer; }
+    .avg-row:hover { background: rgba(255,255,255,0.025); }
+
+    /* Szczegoly w tabeli srednich rozwijane sa kliknieciem w caly wiersz */
     .details-row td { background: rgba(255,255,255,0.015); }
     .btn { background: transparent; border: 1px solid #2a3443; color: #e7e7e7; border-radius: 8px; padding: 6px 10px; cursor: pointer; }
     .btn:hover { background: rgba(255,255,255,0.03); }
 
     /* Średnie graczy – rozwijane szczegóły */
     .player-name { font: inherit; color: #e7e7e7; }
-    .expand-btn {
-      background: transparent;
-      border: 0;
-      padding: 0 2px;
-      margin-left: 6px;
-      cursor: pointer;
-      color: #c9d2e0;
-      font: inherit;
-      line-height: 1;
-    }
-    .expand-btn:hover { color: #ffffff; }
-    .expand-btn[aria-expanded="true"] { transform: rotate(180deg); }
     .details-row td { padding-top: 6px; padding-bottom: 10px; }
     .points-detail { padding-left: 18px; }
     .points-label { margin-right: 8px; }
@@ -72,7 +66,6 @@
 </head>
 <body>
   <h1>G3W War Dashboard</h1>
-  <div class="muted small">Lista wojen jest budowana z wyników <b>zatwierdzonych</b> komendą <code>ADDWAR</code> (po <code>LISTWAR</code> + ewentualnych poprawkach) na Discordzie.</div>
 
   <div class="card">
     <div class="row" style="justify-content:space-between;">
@@ -436,25 +429,23 @@
         tdDetails.appendChild(detailWrap);
         detailsTr.appendChild(tdDetails);
 
-        // Nick + small arrow toggle (nick itself is not clickable)
+        // Nick. Row click toggles details.
         const nameSpan = document.createElement('span');
         nameSpan.className = 'player-name';
         nameSpan.textContent = r.name;
 
-        const arrowBtn = document.createElement('button');
-        arrowBtn.type = 'button';
-        arrowBtn.className = 'expand-btn';
-        arrowBtn.textContent = '▾';
-        arrowBtn.setAttribute('aria-expanded', 'false');
-
         // Track open/closed state so "Pokaż więcej" does not auto-expand detail rows.
         detailsTr.dataset.open = '0';
 
-        arrowBtn.onclick = () => {
+        const setOpen = (open) => {
+          detailsTr.dataset.open = open ? '1' : '0';
+          detailsTr.style.display = open ? '' : 'none';
+          tr.setAttribute('aria-expanded', open ? 'true' : 'false');
+        };
+
+        const toggle = () => {
           const open = detailsTr.dataset.open === '1';
-          detailsTr.dataset.open = open ? '0' : '1';
-          detailsTr.style.display = open ? 'none' : '';
-          arrowBtn.setAttribute('aria-expanded', open ? 'false' : 'true');
+          setOpen(!open);
         };
 
         tr.innerHTML = `
@@ -465,10 +456,28 @@
           <td class="right">${r.sum}</td>
           <td class="right">${r.warsCount}/${x}</td>
         `;
-        // Nick, then space, then arrow (nick itself is not clickable)
+        tr.classList.add('avg-row');
+        tr.setAttribute('role', 'button');
+        tr.setAttribute('tabindex', '0');
+        tr.setAttribute('aria-expanded', 'false');
+
+        tr.addEventListener('click', (e) => {
+          // Allow text selection without toggling if user is selecting.
+          if (window.getSelection && String(window.getSelection()).length > 0) return;
+          toggle();
+        });
+        tr.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            toggle();
+          }
+        });
+
+        // Nick
         tr.children[2].appendChild(nameSpan);
-        tr.children[2].appendChild(document.createTextNode(' '));
-        tr.children[2].appendChild(arrowBtn);
+
+        // Ensure collapsed by default
+        setOpen(false);
 
         tbody.appendChild(tr);
         tbody.appendChild(detailsTr);
@@ -492,6 +501,7 @@
                 detailsTr.style.display = 'none';
                 detailsTr.dataset.open = '0';
               }
+              tr.setAttribute('aria-expanded', 'false');
             } else {
               tr.style.display = '';
               // Force-collapse details for newly revealed rows.
@@ -500,8 +510,7 @@
                 detailsTr.style.display = 'none';
                 detailsTr.dataset.open = '0';
               }
-              const arrow = tr.querySelector('button.expand-btn');
-              if (arrow) arrow.setAttribute('aria-expanded', 'false');
+              tr.setAttribute('aria-expanded', 'false');
             }
           }
           btn.textContent = expanded ? 'Pokaż mniej' : 'Pokaż więcej';
