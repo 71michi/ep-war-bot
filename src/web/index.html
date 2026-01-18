@@ -420,7 +420,7 @@
 
         const label = document.createElement('span');
         label.className = 'points-label';
-        label.textContent = 'Punkty (najnowsze → najstarsze):';
+        label.textContent = 'Pkt z wojen:';
 
         const chips = document.createElement('span');
         chips.className = 'points-chips';
@@ -447,8 +447,12 @@
         arrowBtn.textContent = '▾';
         arrowBtn.setAttribute('aria-expanded', 'false');
 
+        // Track open/closed state so "Pokaż więcej" does not auto-expand detail rows.
+        detailsTr.dataset.open = '0';
+
         arrowBtn.onclick = () => {
-          const open = detailsTr.style.display !== 'none';
+          const open = detailsTr.dataset.open === '1';
+          detailsTr.dataset.open = open ? '0' : '1';
           detailsTr.style.display = open ? 'none' : '';
           arrowBtn.setAttribute('aria-expanded', open ? 'false' : 'true');
         };
@@ -477,9 +481,29 @@
         btn.title = `Pokaż ${rest.length} pozostałych`;
         btn.onclick = () => {
           expanded = !expanded;
-          document.querySelectorAll('#rosterTable tbody tr.more-row').forEach(tr => {
-            tr.style.display = expanded ? '' : 'none';
-          });
+          // Show/hide only the main rows. When revealing "more" rows we keep ALL detail rows collapsed
+          // (user must click the small arrow to open details).
+          const moreMainRows = document.querySelectorAll('#rosterTable tbody tr.more-row:not(.details-row)');
+          for (const tr of moreMainRows) {
+            if (!expanded) {
+              tr.style.display = 'none';
+              const detailsTr = tr.nextElementSibling;
+              if (detailsTr && detailsTr.classList.contains('details-row')) {
+                detailsTr.style.display = 'none';
+                detailsTr.dataset.open = '0';
+              }
+            } else {
+              tr.style.display = '';
+              // Force-collapse details for newly revealed rows.
+              const detailsTr = tr.nextElementSibling;
+              if (detailsTr && detailsTr.classList.contains('details-row')) {
+                detailsTr.style.display = 'none';
+                detailsTr.dataset.open = '0';
+              }
+              const arrow = tr.querySelector('button.expand-btn');
+              if (arrow) arrow.setAttribute('aria-expanded', 'false');
+            }
+          }
           btn.textContent = expanded ? 'Pokaż mniej' : 'Pokaż więcej';
         };
       } else {
