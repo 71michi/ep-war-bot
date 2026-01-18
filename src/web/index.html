@@ -144,20 +144,28 @@
       .war-details-header .pill { font-size: 11px; padding: 2px 7px; }
       .players-wrap { overflow: visible; }
 
-      /* Zamiana tabeli graczy na układ "karty" */
+      /* Lista graczy w szczegółach wojny: na telefonie wszystko w JEDNEJ linii (bez przewijania lewo-prawo) */
       .players-table { border: 0; }
       .players-table thead { display: none; }
-      .players-table, .players-table tbody, .players-table tr { display: block; width: 100%; }
-      .players-table tr { border: 1px solid #222a35; border-radius: 10px; margin: 8px 0; padding: 8px 10px; }
-      .players-table td { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border: 0; }
-      .players-table td::before { content: attr(data-label); color: #a8b0bd; font-size: 12px; }
-      .players-table td.right { justify-content: space-between; }
+      .players-table, .players-table tbody { display: block; width: 100%; }
+      .players-table tr { 
+        display: flex; align-items: center; justify-content: space-between; gap: 10px;
+        border: 1px solid #222a35; border-radius: 12px; margin: 8px 0; padding: 10px 12px;
+      }
+      .players-table td { display: block; padding: 0; border: 0; }
+      .players-table td::before { content: ''; display: none; }
       .players-table tr:hover td { background: transparent; }
       .players-table tr.row-unknown td, .players-table tr.row-oor td { background: transparent; }
 
+      /* Kolumny: ranga | nick | pkt | status */
+      .player-col-rank { flex: 0 0 auto; }
+      .player-col-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .player-col-pts { flex: 0 0 auto; min-width: 56px; text-align: right; }
+      .player-col-status { flex: 0 0 auto; min-width: 92px; text-align: right; }
+
       /* Ustawienia dla badge i punktów */
-      .rank-badge { min-width: 34px; }
-      .status-cell { white-space: normal; }
+      .rank-badge { min-width: 34px; text-align: center; }
+      .status-cell { white-space: nowrap; }
     }
   </style>
 </head>
@@ -404,10 +412,10 @@
 
         return `
           <tr class="${rowClass}" data-rank="${Number.isFinite(rankNum) ? rankNum : ''}" data-pts="${Number.isFinite(ptsNum) ? ptsNum : ''}" data-name="${escapeHtml(p.name ?? '')}">
-            <td class="right" data-label="#"><span class="rank-badge">${escapeHtml(rank)}</span></td>
-            <td data-label="Gracz">${name}</td>
-            <td class="right" data-label="Pkt"><span class="pts">${pts}</span></td>
-            <td class="status-cell" data-label="Status">${statusHtml || '<span class="muted small">—</span>'}</td>
+            <td class="player-col-rank right" data-label="#"><span class="rank-badge">${escapeHtml(rank)}</span></td>
+            <td class="player-col-name" data-label="Gracz">${name}</td>
+            <td class="player-col-pts right" data-label="Pkt"><span class="pts">${pts}</span></td>
+            <td class="player-col-status status-cell" data-label="Status">${statusHtml || '<span class="muted small">—</span>'}</td>
           </tr>
         `;
       };
