@@ -10,6 +10,7 @@
     h1 { margin: 0 0 10px; font-size: 20px; }
     .muted { color: #a8b0bd; }
     .card { background: #151a22; border: 1px solid #222a35; border-radius: 10px; padding: 12px; margin: 10px 0 16px; }
+    .table-wrap { overflow: auto; margin-top: 10px; }
     .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
     select, input { background: #0f1115; color: #e7e7e7; border: 1px solid #2a3443; border-radius: 8px; padding: 6px 8px; }
     table { width: 100%; border-collapse: collapse; }
@@ -69,7 +70,8 @@
     .count-loss { color: rgba(231, 76, 60, 0.95); font-weight: 700; }
 
     /* Wojny: ładniejszy widok listy graczy w szczegółach */
-    .war-details { display: grid; gap: 10px; }
+    .war-details { display: grid; gap: 10px; width: 100%; max-width: 100%; box-sizing: border-box; text-align: left; }
+    .war-details * { box-sizing: border-box; }
     .war-details-header { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
     .war-meta { display: inline-flex; gap: 6px; align-items: center; }
     .war-meta code { background: rgba(255,255,255,0.03); border: 1px solid #2a3443; padding: 1px 6px; border-radius: 999px; }
@@ -111,10 +113,31 @@
     .draws { color: #a8b0bd; font-weight: 700; }
     .losses { color: rgba(231, 76, 60, 0.95); font-weight: 700; }
 
-    /* Mobile: szczegóły wojny bez przewijania lewo-prawo */
+    /* Mobile: brak przewijania lewo-prawo (wojny jako karty + szczegóły full-width) */
     @media (max-width: 640px) {
       body { margin: 10px; }
       .card { padding: 10px; }
+
+      /* Na mobile nie przewijamy poziomo kontenera tabel */
+      .table-wrap { overflow: visible; }
+
+      /* Lista wojen jako karty (bez szerokiej tabeli) */
+      #warsTable thead { display: none; }
+      #warsTable, #warsTable tbody, #warsTable tr { display: block; width: 100%; }
+      #warsTable tr.war-row { border: 1px solid #222a35; border-radius: 10px; margin: 10px 0; overflow: hidden; }
+      #warsTable tr.war-row td { border-bottom: 1px solid rgba(255,255,255,0.06); }
+      #warsTable tr.war-row td:last-child { border-bottom: 0; }
+      #warsTable td { display: flex; justify-content: space-between; gap: 12px; padding: 8px 10px; }
+      #warsTable td::before { content: attr(data-label); color: #a8b0bd; font-size: 12px; }
+      #warsTable td.right { text-align: left; }
+      #warsTable td:first-child { justify-content: flex-start; gap: 10px; }
+      #warsTable td:first-child::before { content: 'Szczegóły'; }
+      #warsTable .toggle { padding: 4px 8px; }
+
+      /* Wiersz szczegółów jako blok pod kartą */
+      #warsTable tr.details-row { display: block; margin: -6px 0 14px; }
+      #warsTable tr.details-row td { display: block; padding: 8px 0 0; border: 0; }
+      #warsTable tr.details-row td::before { content: ''; }
 
       .war-details-header { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: start; }
       .war-details-header .war-meta { grid-column: 1 / -1; }
@@ -169,7 +192,7 @@
       </select>
     </div>
 
-    <div style="overflow:auto; margin-top:10px;">
+    <div class="table-wrap wars-wrap">
       <table id="warsTable">
         <thead>
           <tr>
@@ -200,7 +223,7 @@
       <select id="avgX"></select>
       <div class="muted">wojen</div>
     </div>
-    <div style="overflow:auto; margin-top:10px;">
+    <div class="table-wrap">
       <table id="rosterTable">
         <thead>
           <tr>
@@ -484,15 +507,15 @@
       };
 
       tr.innerHTML = `
-        <td></td>
-        <td>${escapeHtml(fmtDate(w.created_at_ts || 0))}</td>
-        <td><span class="pill ${pillClass}">${escapeHtml(res)}</span></td>
-        <td class="right">${escapeHtml((diff >= 0 ? '+' : '') + diff)}</td>
-        <td>${escapeHtml(mode)}</td>
-        <td class="right">${escapeHtml(w.our_score ?? '')}</td>
-        <td>${escapeHtml(opp)}</td>
-        <td class="right">${escapeHtml((w.opponent_score ?? w.enemy_score ?? '') + '')}</td>
-        <td class="right">${oorN ? `<span class="pill warn">${oorN}</span>` : '0'}</td>
+        <td data-label="Szczegóły"></td>
+        <td data-label="Data">${escapeHtml(fmtDate(w.created_at_ts || 0))}</td>
+        <td data-label="Wynik"><span class="pill ${pillClass}">${escapeHtml(res)}</span></td>
+        <td class="right" data-label="Różnica">${escapeHtml((diff >= 0 ? '+' : '') + diff)}</td>
+        <td data-label="Tryb">${escapeHtml(mode)}</td>
+        <td class="right" data-label="My">${escapeHtml(w.our_score ?? '')}</td>
+        <td data-label="Przeciwnik">${escapeHtml(opp)}</td>
+        <td class="right" data-label="Ich wynik">${escapeHtml((w.opponent_score ?? w.enemy_score ?? '') + '')}</td>
+        <td class="right" data-label="Poza rosterem">${oorN ? `<span class="pill warn">${oorN}</span>` : '0'}</td>
       `;
       tr.children[0].appendChild(btn);
       tbody.appendChild(tr);
