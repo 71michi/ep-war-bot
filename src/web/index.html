@@ -85,6 +85,24 @@
     .players-table tr.row-oor td { background: rgba(241, 196, 15, 0.04); }
     .players-table tr.row-unknown:hover td { background: rgba(241, 196, 15, 0.09); }
     .players-table tr.row-oor:hover td { background: rgba(241, 196, 15, 0.06); }
+
+    /* Mobile players list for war details */
+    .players-mobile { display: none; }
+    .players-mobile .player-line {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border: 1px solid #222a35;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.01);
+    }
+    .players-mobile .player-line.row-unknown { background: rgba(241, 196, 15, 0.06); }
+    .players-mobile .player-line.row-oor { background: rgba(241, 196, 15, 0.04); }
+    .players-mobile .rank-badge { flex: 0 0 auto; min-width: 34px; text-align: center; }
+    .players-mobile .pname { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .players-mobile .pts { flex: 0 0 auto; min-width: 56px; text-align: right; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    .players-mobile .pstatus { flex: 0 0 auto; min-width: 92px; text-align: right; white-space: nowrap; display: flex; justify-content: flex-end; }
     .rank-badge {
       display: inline-flex;
       min-width: 26px;
@@ -144,28 +162,9 @@
       .war-details-header .pill { font-size: 11px; padding: 2px 7px; }
       .players-wrap { overflow: visible; }
 
-      /* Lista graczy w szczegółach wojny: na telefonie wszystko w JEDNEJ linii (bez przewijania lewo-prawo) */
-      .players-table { border: 0; }
-      .players-table thead { display: none; }
-      .players-table, .players-table tbody { display: block; width: 100%; }
-      .players-table tr { 
-        display: flex; align-items: center; justify-content: space-between; gap: 10px;
-        border: 1px solid #222a35; border-radius: 12px; margin: 8px 0; padding: 10px 12px;
-      }
-      .players-table td { display: block; padding: 0; border: 0; }
-      .players-table td::before { content: ''; display: none; }
-      .players-table tr:hover td { background: transparent; }
-      .players-table tr.row-unknown td, .players-table tr.row-oor td { background: transparent; }
-
-      /* Kolumny: ranga | nick | pkt | status */
-      .player-col-rank { flex: 0 0 auto; }
-      .player-col-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .player-col-pts { flex: 0 0 auto; min-width: 56px; text-align: right; }
-      .player-col-status { flex: 0 0 auto; min-width: 92px; text-align: right; }
-
-      /* Ustawienia dla badge i punktów */
-      .rank-badge { min-width: 34px; text-align: center; }
-      .status-cell { white-space: nowrap; }
+      /* War details players list on mobile uses div-based layout (no table hacks for Safari) */
+      .players-table { display: none; }
+      .players-mobile { display: flex; flex-direction: column; gap: 8px; }
     }
   </style>
 </head>
@@ -420,8 +419,34 @@
         `;
       };
 
+      const mkPlayersLineHtml = (p) => {
+        const status = String(p.status || 'ok');
+        let statusHtml = '<span class="muted small">—</span>';
+        let rowClass = '';
+        if (status === 'unknown') { statusHtml = `<span class="pill warn">UNKNOWN</span>`; rowClass = 'row-unknown'; }
+        else if (status === 'out_of_roster') { statusHtml = `<span class="pill warn">Poza rosterem</span>`; rowClass = 'row-oor'; }
+
+        const r = String(p.rank ?? '').trim();
+        const rankNum = r ? Number(r) : NaN;
+        const rank = r ? String(r).padStart(2,'0') : '--';
+        const name = escapeHtml(p.name ?? '');
+        const ptsNum = Number(p.points || 0);
+        const pts = escapeHtml(p.points ?? '');
+
+        return `
+          <div class="player-line ${rowClass}" data-rank="${Number.isFinite(rankNum) ? rankNum : ''}" data-pts="${Number.isFinite(ptsNum) ? ptsNum : ''}" data-name="${escapeHtml(p.name ?? '')}">
+            <span class="rank-badge">${escapeHtml(rank)}</span>
+            <span class="pname">${name}</span>
+            <span class="pts">${pts}</span>
+            <span class="pstatus">${statusHtml}</span>
+          </div>
+        `;
+      };
+
       const buildPlayersRowsHtml = (arr) => arr.map(mkPlayersRowHtml).join('');
+      const buildPlayersMobileHtml = (arr) => arr.map(mkPlayersLineHtml).join('');
       const playersRowsHtml = buildPlayersRowsHtml(players);
+      const playersMobileHtml = buildPlayersMobileHtml(players);
 
       const tr = document.createElement('tr');
       tr.className = 'war-row' + (isWin ? ' row-win' : (isLoss ? ' row-loss' : ''));
@@ -464,6 +489,9 @@
                 ${players.length ? playersRowsHtml : `<tr><td colspan="4" class="muted small">Brak listy graczy w tej wojnie.</td></tr>`}
               </tbody>
             </table>
+            <div class="players-mobile">
+              ${players.length ? playersMobileHtml : `<div class="muted small">Brak listy graczy w tej wojnie.</div>`}
+            </div>
           </div>
         </div>
       </td>`;
@@ -488,9 +516,10 @@
         };
 
         const renderPlayers = () => {
-          if (!body) return;
           const arr = sortPlayers(sortKey, sortDir);
-          body.innerHTML = buildPlayersRowsHtml(arr);
+          if (body) body.innerHTML = buildPlayersRowsHtml(arr);
+          const mob = detailsTr.querySelector('.players-mobile');
+          if (mob) mob.innerHTML = buildPlayersMobileHtml(arr);
         };
 
         heads.forEach(th => {

@@ -1138,3 +1138,4 @@
 2026-01-16 22:58:25,390 DEBUG [-] warbot: Final roster mapping: rank 28 raw='Laluś' -> Laluś
 2026-01-16 22:58:25,390 DEBUG [-] warbot: Final roster mapping: rank 29 raw='grubson87®' -> grubson87®
 2026-01-18 18:24:22,843 DEBUG [-] warbot.openai_parser: Converted input image JPEG -> PNG (632 bytes -> 77 bytes)
+2026-01-18 21:16:03,145 DEBUG [-] warbot.openai_parser: Converted input image JPEG -> PNG (632 bytes -> 77 bytes)
