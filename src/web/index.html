@@ -62,6 +62,53 @@
     .rank-up { color: rgba(46, 204, 113, 0.95); font-weight: 700; }
     .rank-down { color: rgba(231, 76, 60, 0.95); font-weight: 700; }
     .rank-same { color: #a8b0bd; }
+
+    /* Licznik W-D-L przy nagłówku "Wojny" */
+    .count-win { color: rgba(46, 204, 113, 0.95); font-weight: 700; }
+    .count-draw { color: #a8b0bd; font-weight: 700; }
+    .count-loss { color: rgba(231, 76, 60, 0.95); font-weight: 700; }
+
+    /* Wojny: ładniejszy widok listy graczy w szczegółach */
+    .war-details { display: grid; gap: 10px; }
+    .war-details-header { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .war-meta { display: inline-flex; gap: 6px; align-items: center; }
+    .war-meta code { background: rgba(255,255,255,0.03); border: 1px solid #2a3443; padding: 1px 6px; border-radius: 999px; }
+    .players-table { width: 100%; border-collapse: collapse; border: 1px solid #222a35; border-radius: 10px; overflow: hidden; }
+    .players-table th, .players-table td { padding: 8px 10px; border-bottom: 1px solid #222a35; }
+    .players-table th { background: rgba(255,255,255,0.02); color: #c9d2e0; font-weight: 650; }
+    .players-table tr:hover td { background: rgba(255,255,255,0.02); }
+    /* Podświetlenie wierszy ze statusem (UNKNOWN / poza rosterem) */
+    .players-table tr.row-unknown td { background: rgba(241, 196, 15, 0.06); }
+    .players-table tr.row-oor td { background: rgba(241, 196, 15, 0.04); }
+    .players-table tr.row-unknown:hover td { background: rgba(241, 196, 15, 0.09); }
+    .players-table tr.row-oor:hover td { background: rgba(241, 196, 15, 0.06); }
+    .rank-badge {
+      display: inline-flex;
+      min-width: 26px;
+      justify-content: center;
+      padding: 1px 6px;
+      border-radius: 999px;
+      border: 1px solid #2a3443;
+      background: rgba(255,255,255,0.02);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 12px;
+      color: #d7deea;
+    }
+    .pts {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 13px;
+      color: #e7e7e7;
+    }
+    .status-cell { white-space: nowrap; }
+    .status-pill { margin-left: 6px; }
+
+    /* Wojny: przycisk Pokaż więcej/mniej */
+    .wars-toggle-wrap { margin-top: 10px; display: flex; justify-content: flex-start; }
+
+    /* Nagłówek: bilans W-R-P */
+    .wins { color: rgba(46, 204, 113, 0.95); font-weight: 700; }
+    .draws { color: #a8b0bd; font-weight: 700; }
+    .losses { color: rgba(231, 76, 60, 0.95); font-weight: 700; }
   </style>
 </head>
 <body>
@@ -69,7 +116,7 @@
 
   <div class="card">
     <div class="row" style="justify-content:space-between;">
-      <div><b>Wojny</b></div>
+      <div><b>Wojny</b> <span class="muted" id="warsSummary" title="Bilans: zwycięstwa–remisy–porażki"></span></div>
       <div class="muted" id="warsCount">Ładowanie…</div>
     </div>
 
@@ -112,6 +159,10 @@
         </thead>
         <tbody></tbody>
       </table>
+    </div>
+
+    <div class="wars-toggle-wrap">
+      <button id="warsToggleBtn" class="btn" style="display:none;">Pokaż więcej</button>
     </div>
   </div>
 
@@ -244,9 +295,36 @@
     const tbody = document.querySelector('#warsTable tbody');
     tbody.innerHTML = '';
 
+    // Bilans W-D-L liczony ze wszystkich wojen (niezależnie od filtrów)
+    const wins = wars.filter(w => /zwyci/i.test(String(w.result || ''))).length;
+    const draws = wars.filter(w => /remis/i.test(String(w.result || ''))).length;
+    const losses = wars.filter(w => /(poraż|przegr)/i.test(String(w.result || ''))).length;
+    const summaryEl = document.getElementById('warsSummary');
+    if (summaryEl) {
+      summaryEl.innerHTML = `(<span class="count-win">${wins}</span>-<span class="count-draw">${draws}</span>-<span class="count-loss">${losses}</span>)`;
+    }
+
     document.getElementById('warsCount').textContent = `Wojny: ${filtered.length} / ${wars.length}`;
 
-    for (const w of filtered) {
+    // Domyślnie pokazuj tylko 5 ostatnich wojen. Stan "Pokaż więcej" utrzymujemy
+    // do kliknięcia "Pokaż mniej" lub odświeżenia strony.
+    const toggleBtn = document.getElementById('warsToggleBtn');
+    const showAll = !!window.__WARS_EXPANDED__;
+    const list = showAll ? filtered : filtered.slice(0, 5);
+    if (toggleBtn) {
+      if (filtered.length > 5) {
+        toggleBtn.style.display = '';
+        toggleBtn.textContent = showAll ? 'Pokaż mniej' : 'Pokaż więcej';
+        toggleBtn.onclick = () => {
+          window.__WARS_EXPANDED__ = !showAll;
+          renderWars();
+        };
+      } else {
+        toggleBtn.style.display = 'none';
+      }
+    }
+
+    for (const w of list) {
       const res = w.result || '';
       const isWin = /zwyci/i.test(res);
       const isLoss = /(poraż|przegr)/i.test(res);
@@ -258,13 +336,34 @@
       const mode = (w.mode || '').trim() || '-';
       const opp = (w.opponent_alliance || '').trim() || '-';
 
-      const detailsLines = (w.players || []).map(p => {
-        const status = p.status || 'ok';
-        let note = '';
-        if (status === 'unknown') note = ' (UNKNOWN)';
-        else if (status === 'out_of_roster') note = ' (poza rosterem)';
-        return `[${String(p.rank).padStart(2,'0')}] ${p.name} — ${p.points}${note}`;
-      }).join('\n');
+      const players = Array.isArray(w.players) ? w.players : [];
+
+      const mkPlayersRowHtml = (p) => {
+        const status = String(p.status || 'ok');
+        let statusHtml = '';
+        let rowClass = '';
+        if (status === 'unknown') { statusHtml = `<span class="pill warn status-pill">UNKNOWN</span>`; rowClass = 'row-unknown'; }
+        else if (status === 'out_of_roster') { statusHtml = `<span class="pill warn status-pill">Poza rosterem</span>`; rowClass = 'row-oor'; }
+
+        const r = String(p.rank ?? '').trim();
+        const rankNum = r ? Number(r) : NaN;
+        const rank = r ? String(r).padStart(2,'0') : '--';
+        const name = escapeHtml(p.name ?? '');
+        const ptsNum = Number(p.points || 0);
+        const pts = escapeHtml(p.points ?? '');
+
+        return `
+          <tr class="${rowClass}" data-rank="${Number.isFinite(rankNum) ? rankNum : ''}" data-pts="${Number.isFinite(ptsNum) ? ptsNum : ''}" data-name="${escapeHtml(p.name ?? '')}">
+            <td class="right"><span class="rank-badge">${escapeHtml(rank)}</span></td>
+            <td>${name}</td>
+            <td class="right"><span class="pts">${pts}</span></td>
+            <td class="status-cell">${statusHtml || '<span class="muted small">—</span>'}</td>
+          </tr>
+        `;
+      };
+
+      const buildPlayersRowsHtml = (arr) => arr.map(mkPlayersRowHtml).join('');
+      const playersRowsHtml = buildPlayersRowsHtml(players);
 
       const tr = document.createElement('tr');
       tr.className = 'war-row' + (isWin ? ' row-win' : (isLoss ? ' row-loss' : ''));
@@ -278,10 +377,78 @@
       detailsTr.className = 'details-row';
       detailsTr.style.display = 'none';
       const wid = (w.war_id || '').trim();
+      const scoreOpp = (w.opponent_score ?? w.enemy_score ?? '');
+      const diffText = (diff >= 0 ? '+' : '') + diff;
+      const metaId = wid ? `<span class="war-meta muted small">ID: <code>${escapeHtml(wid)}</code></span>` : '';
+
       detailsTr.innerHTML = `<td colspan="9">
-        <pre class="small">${escapeHtml(detailsLines || '')}</pre>
-        ${wid ? `<div class="muted small" style="margin-top:6px;">ID wojny: <code>${escapeHtml(wid)}</code></div>` : ''}
+        <div class="war-details">
+          <div class="war-details-header">
+            ${metaId}
+            <span class="pill ${pillClass}">${escapeHtml(res)}</span>
+            <span class="pill">Tryb: ${escapeHtml(mode)}</span>
+            <span class="pill">My: ${escapeHtml(w.our_score ?? '')}</span>
+            <span class="pill">Ich: ${escapeHtml(scoreOpp)}</span>
+            <span class="pill">Różnica: ${escapeHtml(diffText)}</span>
+            <span class="pill">Przeciwnik: ${escapeHtml(opp)}</span>
+          </div>
+          <div style="overflow:auto;">
+            <table class="players-table">
+              <thead>
+                <tr>
+                  <th class="right" data-sort="rank" title="Kliknij, aby sortować">#</th>
+                  <th data-sort="name" title="Kliknij, aby sortować">Gracz</th>
+                  <th class="right" data-sort="pts" title="Kliknij, aby sortować">Pkt</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${players.length ? playersRowsHtml : `<tr><td colspan="4" class="muted small">Brak listy graczy w tej wojnie.</td></tr>`}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </td>`;
+
+      // Sortowanie listy graczy w szczegółach wojny
+      if (players.length) {
+        const table = detailsTr.querySelector('.players-table');
+        const body = table ? table.querySelector('tbody') : null;
+        const heads = table ? table.querySelectorAll('thead th[data-sort]') : [];
+        let sortKey = 'rank';
+        let sortDir = 'asc';
+
+        const sortPlayers = (key, dir) => {
+          const arr = players.slice();
+          const mul = dir === 'asc' ? 1 : -1;
+          arr.sort((a, b) => {
+            if (key === 'rank') return mul * ((Number(a.rank||0) - Number(b.rank||0)) || String(a.name||'').localeCompare(String(b.name||''),'pl'));
+            if (key === 'pts') return mul * ((Number(a.points||0) - Number(b.points||0)) || (Number(a.rank||0) - Number(b.rank||0)));
+            return mul * String(a.name||'').localeCompare(String(b.name||''),'pl') || (Number(a.rank||0) - Number(b.rank||0));
+          });
+          return arr;
+        };
+
+        const renderPlayers = () => {
+          if (!body) return;
+          const arr = sortPlayers(sortKey, sortDir);
+          body.innerHTML = buildPlayersRowsHtml(arr);
+        };
+
+        heads.forEach(th => {
+          th.style.cursor = 'pointer';
+          th.onclick = () => {
+            const key = th.getAttribute('data-sort');
+            if (!key) return;
+            if (sortKey === key) sortDir = (sortDir === 'asc') ? 'desc' : 'asc';
+            else {
+              sortKey = key;
+              sortDir = (key === 'pts') ? 'desc' : 'asc';
+            }
+            renderPlayers();
+          };
+        });
+      }
 
       btn.onclick = () => {
         const isOpen = detailsTr.style.display !== 'none';
