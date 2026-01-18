@@ -34,8 +34,40 @@
     .details-row td { background: rgba(255,255,255,0.015); }
     .btn { background: transparent; border: 1px solid #2a3443; color: #e7e7e7; border-radius: 8px; padding: 6px 10px; cursor: pointer; }
     .btn:hover { background: rgba(255,255,255,0.03); }
-    .player-btn { background: transparent; border: 0; color: #e7e7e7; padding: 0; cursor: pointer; font: inherit; text-align: left; }
-    .player-btn:hover { text-decoration: underline; }
+
+    /* Średnie graczy – rozwijane szczegóły */
+    .player-name { font: inherit; color: #e7e7e7; }
+    .expand-btn {
+      background: transparent;
+      border: 0;
+      padding: 0 2px;
+      margin-left: 6px;
+      cursor: pointer;
+      color: #c9d2e0;
+      font: inherit;
+      line-height: 1;
+    }
+    .expand-btn:hover { color: #ffffff; }
+    .expand-btn[aria-expanded="true"] { transform: rotate(180deg); }
+    .details-row td { padding-top: 6px; padding-bottom: 10px; }
+    .points-detail { padding-left: 18px; }
+    .points-label { margin-right: 8px; }
+    .points-chips { display: inline-flex; flex-wrap: wrap; gap: 6px; vertical-align: middle; }
+    .pts-chip {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 999px;
+      border: 1px solid #2a3443;
+      background: rgba(255,255,255,0.02);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 12px;
+      color: #d7deea;
+    }
+
+    /* Zmiana pozycji w rankingu średniej (wpływ ostatniej wojny) */
+    .rank-up { color: rgba(46, 204, 113, 0.95); font-weight: 700; }
+    .rank-down { color: rgba(231, 76, 60, 0.95); font-weight: 700; }
+    .rank-same { color: #a8b0bd; }
   </style>
 </head>
 <body>
@@ -102,6 +134,7 @@
         <thead>
           <tr>
             <th class="right">#</th>
+            <th class="right" title="Jak ostatnia wojna wpłynęła na pozycję w rankingu średniej">Δ</th>
             <th>Nick (roster)</th>
             <th class="right">Średnia</th>
             <th class="right">Suma</th>
@@ -303,36 +336,58 @@
       const warsSorted = wars.slice().sort((a, b) => Number(b.created_at_ts || 0) - Number(a.created_at_ts || 0));
       const slice = warsSorted.slice(0, x);
 
-      // For averages we count only wars where the player is present in the list.
-      // (We do NOT divide by X if the player did not participate.)
-      const statsByName = new Map();
-      for (const name of roster) {
-        statsByName.set(name, { sum: 0, count: 0, points: Array(x).fill(null) });
-      }
+      // Compare current ranking (last X wars) with the previous window (wars 2..X+1).
+      // This gives "how the last war affected the player's position".
+      const prevSlice = warsSorted.slice(1, x + 1);
 
-      for (let i = 0; i < slice.length; i++) {
-        const w = slice[i];
-        const map = new Map();
-        for (const p of (w.players || [])) {
-          map.set(p.name, Number(p.points || 0));
-        }
+      const buildRowsForSlice = (warSlice, wantPoints) => {
+        // For averages we count only wars where the player is present in the list.
+        // (We do NOT divide by X if the player did not participate.)
+        const statsByName = new Map();
         for (const name of roster) {
-          const s = statsByName.get(name);
-          if (!s) continue;
-          if (map.has(name)) {
-            const pts = Number(map.get(name) || 0);
-            s.points[i] = pts;
-            s.sum += pts;
-            s.count += 1;
+          statsByName.set(name, { sum: 0, count: 0, points: wantPoints ? Array(x).fill(null) : null });
+        }
+        for (let i = 0; i < warSlice.length; i++) {
+          const w = warSlice[i];
+          const map = new Map();
+          for (const p of (w.players || [])) {
+            map.set(p.name, Number(p.points || 0));
+          }
+          for (const name of roster) {
+            const s = statsByName.get(name);
+            if (!s) continue;
+            if (map.has(name)) {
+              const pts = Number(map.get(name) || 0);
+              if (wantPoints && s.points) s.points[i] = pts;
+              s.sum += pts;
+              s.count += 1;
+            }
           }
         }
+        return roster.map(name => {
+          const s = statsByName.get(name) || { sum: 0, count: 0, points: wantPoints ? Array(x).fill(null) : null };
+          const avg = s.count ? (s.sum / s.count) : 0;
+          return { name, avg, sum: s.sum, warsCount: s.count, points: wantPoints ? (s.points || Array(x).fill(null)) : null };
+        }).sort((a,b)=> (b.avg - a.avg) || (b.sum - a.sum) || a.name.localeCompare(b.name));
+      };
+
+      const rows = buildRowsForSlice(slice, true);
+      const prevRows = (prevSlice.length === x) ? buildRowsForSlice(prevSlice, false) : null;
+
+      const prevRankByName = new Map();
+      if (prevRows) {
+        prevRows.forEach((r, idx) => prevRankByName.set(r.name, idx + 1));
       }
 
-      const rows = roster.map(name => {
-        const s = statsByName.get(name) || { sum: 0, count: 0, points: Array(x).fill(null) };
-        const avg = s.count ? (s.sum / s.count) : 0;
-        return { name, avg, sum: s.sum, warsCount: s.count, points: s.points };
-      }).sort((a,b)=> (b.avg - a.avg) || (b.sum - a.sum) || a.name.localeCompare(b.name));
+      const trendHtml = (currentRank, name) => {
+        if (!prevRows) return '<span class="rank-same">–</span>';
+        const prevRank = prevRankByName.get(name);
+        if (!prevRank) return '<span class="rank-same">–</span>';
+        const diff = prevRank - currentRank; // positive => moved up
+        if (diff > 0) return `<span class="rank-up" title="Poprzednio #${prevRank}">▲${diff}</span>`;
+        if (diff < 0) return `<span class="rank-down" title="Poprzednio #${prevRank}">▼${Math.abs(diff)}</span>`;
+        return `<span class="rank-same" title="Bez zmiany (poprzednio #${prevRank})">•0</span>`;
+      };
 
       const top = rows.slice(0, 5);
       const rest = rows.slice(5);
@@ -355,26 +410,61 @@
           detailsTr.style.display = 'none';
         }
 
-        const pointsLine = (r.points || []).map(v => (v === null || v === undefined) ? '-' : String(v)).join('  |  ');
-        detailsTr.innerHTML = `<td colspan="5" class="small muted">Punkty (najnowsze → najstarsze): <code>${escapeHtml(pointsLine)}</code></td>`;
+        // Details row (hidden by default). We only expand it by clicking the arrow next to the nick.
+        const tdDetails = document.createElement('td');
+        tdDetails.colSpan = 6;
+        tdDetails.className = 'small muted';
 
-        const nameBtn = document.createElement('button');
-        nameBtn.type = 'button';
-        nameBtn.className = 'player-btn';
-        nameBtn.textContent = r.name;
-        nameBtn.onclick = () => {
+        const detailWrap = document.createElement('div');
+        detailWrap.className = 'points-detail';
+
+        const label = document.createElement('span');
+        label.className = 'points-label';
+        label.textContent = 'Punkty (najnowsze → najstarsze):';
+
+        const chips = document.createElement('span');
+        chips.className = 'points-chips';
+        for (const v of (r.points || [])) {
+          const chip = document.createElement('span');
+          chip.className = 'pts-chip';
+          chip.textContent = (v === null || v === undefined) ? '-' : String(v);
+          chips.appendChild(chip);
+        }
+
+        detailWrap.appendChild(label);
+        detailWrap.appendChild(chips);
+        tdDetails.appendChild(detailWrap);
+        detailsTr.appendChild(tdDetails);
+
+        // Nick + small arrow toggle (nick itself is not clickable)
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'player-name';
+        nameSpan.textContent = r.name;
+
+        const arrowBtn = document.createElement('button');
+        arrowBtn.type = 'button';
+        arrowBtn.className = 'expand-btn';
+        arrowBtn.textContent = '▾';
+        arrowBtn.setAttribute('aria-expanded', 'false');
+
+        arrowBtn.onclick = () => {
           const open = detailsTr.style.display !== 'none';
           detailsTr.style.display = open ? 'none' : '';
+          arrowBtn.setAttribute('aria-expanded', open ? 'false' : 'true');
         };
 
         tr.innerHTML = `
           <td class="right">${idx + 1}</td>
+          <td class="right small">${trendHtml(idx + 1, r.name)}</td>
           <td></td>
           <td class="right">${r.avg.toFixed(1)}</td>
           <td class="right">${r.sum}</td>
           <td class="right">${r.warsCount}/${x}</td>
         `;
-        tr.children[1].appendChild(nameBtn);
+        // Nick, then space, then arrow (nick itself is not clickable)
+        tr.children[2].appendChild(nameSpan);
+        tr.children[2].appendChild(document.createTextNode(' '));
+        tr.children[2].appendChild(arrowBtn);
 
         tbody.appendChild(tr);
         tbody.appendChild(detailsTr);
