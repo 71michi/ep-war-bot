@@ -30,8 +30,37 @@
     pre { background: #0f1115; border: 1px solid #2a3443; border-radius: 10px; padding: 10px; overflow: auto; }
     .small { font-size: 12px; }
     .right { text-align: right; }
+    /* (legacy) button toggle styles kept for other places */
     .toggle { background: transparent; border: 1px solid #2a3443; color: #e7e7e7; border-radius: 8px; padding: 4px 8px; cursor: pointer; }
     .toggle:hover { background: rgba(255,255,255,0.03); }
+
+    /* Wars list: click whole row */
+    .war-row { cursor: pointer; }
+    .war-row:hover td { background: rgba(255,255,255,0.02); }
+
+    /* Mobile one-line summary for wars (Data + Wynik + Różnica + Przeciwnik + skrót trybu) */
+    .war-line { display: none; align-items: center; gap: 10px; min-width: 0; }
+    .war-line .w-date { flex: 0 0 auto; color: #e7e7e7; }
+    .war-line .w-diff { flex: 0 0 auto; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    .war-line .w-opp {
+      flex: 1 1 auto;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: #c9d2e0;
+      font-size: 12px;
+    }
+    .war-line .w-mode-short {
+      flex: 0 0 auto;
+      min-width: 32px;
+      text-align: right;
+      font-size: 12px;
+      font-weight: 700;
+      color: #d7deea;
+      opacity: 0.95;
+    }
+    .w-date-only { display: inline; }
 
     /* Average table row toggle */
     .avg-row { cursor: pointer; }
@@ -139,18 +168,16 @@
       /* Na mobile nie przewijamy poziomo kontenera tabel */
       .table-wrap { overflow: visible; }
 
-      /* Lista wojen jako karty (bez szerokiej tabeli) */
+      /* Wars list on mobile: one-line summary (no horizontal scroll) */
       #warsTable thead { display: none; }
       #warsTable, #warsTable tbody, #warsTable tr { display: block; width: 100%; }
       #warsTable tr.war-row { border: 1px solid #222a35; border-radius: 10px; margin: 10px 0; overflow: hidden; }
-      #warsTable tr.war-row td { border-bottom: 1px solid rgba(255,255,255,0.06); }
-      #warsTable tr.war-row td:last-child { border-bottom: 0; }
-      #warsTable td { display: flex; justify-content: space-between; gap: 12px; padding: 8px 10px; }
-      #warsTable td::before { content: attr(data-label); color: #a8b0bd; font-size: 12px; }
-      #warsTable td.right { text-align: left; }
-      #warsTable td:first-child { justify-content: flex-start; gap: 10px; }
-      #warsTable td:first-child::before { content: 'Szczegóły'; }
-      #warsTable .toggle { padding: 4px 8px; }
+      /* show only the first cell with a compact one-line summary */
+      #warsTable tr.war-row td { display: none; border: 0; padding: 10px 12px; }
+      #warsTable tr.war-row td:first-child { display: block; }
+      #warsTable td::before { content: ''; }
+      .war-line { display: flex; }
+      .w-date-only { display: none; }
 
       /* Wiersz szczegółów jako blok pod kartą */
       #warsTable tr.details-row { display: block; margin: -6px 0 14px; }
@@ -203,15 +230,11 @@
       <table id="warsTable">
         <thead>
           <tr>
-            <th></th>
             <th>Data</th>
             <th>Wynik</th>
             <th class="right">Różnica</th>
-            <th>Tryb</th>
-            <th class="right">My</th>
             <th>Przeciwnik</th>
-            <th class="right">Ich wynik</th>
-            <th class="right">Poza rosterem</th>
+            <th>Tryb</th>
           </tr>
         </thead>
         <tbody></tbody>
@@ -266,6 +289,25 @@
       .replaceAll('>','&gt;')
       .replaceAll('"','&quot;')
       .replaceAll("'",'&#39;');
+  }
+
+  function abbrMode(mode) {
+    const m = String(mode || '').trim();
+    if (!m || m === '-') return '-';
+    const up = m.toUpperCase();
+    const map = {
+      'LEPSZY ATAK': 'LA',
+      'SZTURM': 'SZ',
+      'ŻAR Z NIEBA': 'ZZN',
+      'ZAR Z NIEBA': 'ZZN',
+      'KRWAWA WOJNA': 'KW',
+    };
+    if (map[up]) return map[up];
+
+    // Fallback: take first letters of words (including short ones like "Z").
+    const parts = up.split(/\s+/).filter(Boolean);
+    const ab = parts.map(p => p[0]).join('');
+    return ab.slice(0, 4);
   }
 
   async function loadAll() {
@@ -390,7 +432,8 @@
       const diff = Number(w.diff || 0);
       const oorN = Number(w.out_of_roster_count || 0);
 
-      const mode = (w.mode || '').trim() || '-';
+      const modeFull = (w.mode || '').trim() || '-';
+      const modeShort = abbrMode(modeFull);
       const opp = (w.opponent_alliance || '').trim() || '-';
 
       const players = Array.isArray(w.players) ? w.players : [];
@@ -451,11 +494,6 @@
       const tr = document.createElement('tr');
       tr.className = 'war-row' + (isWin ? ' row-win' : (isLoss ? ' row-loss' : ''));
 
-      const btn = document.createElement('button');
-      btn.className = 'toggle';
-      btn.type = 'button';
-      btn.textContent = '▶';
-
       const detailsTr = document.createElement('tr');
       detailsTr.className = 'details-row';
       detailsTr.style.display = 'none';
@@ -464,12 +502,12 @@
       const diffText = (diff >= 0 ? '+' : '') + diff;
       const metaId = wid ? `<span class="war-meta muted small">ID: <code>${escapeHtml(wid)}</code></span>` : '';
 
-      detailsTr.innerHTML = `<td colspan="9">
+      detailsTr.innerHTML = `<td colspan="5">
         <div class="war-details">
           <div class="war-details-header">
             ${metaId}
             <span class="pill ${pillClass}">${escapeHtml(res)}</span>
-            <span class="pill">Tryb: ${escapeHtml(mode)}</span>
+            <span class="pill">Tryb: ${escapeHtml(modeFull)}</span>
             <span class="pill">My: ${escapeHtml(w.our_score ?? '')}</span>
             <span class="pill">Ich: ${escapeHtml(scoreOpp)}</span>
             <span class="pill">Różnica: ${escapeHtml(diffText)}</span>
@@ -537,24 +575,41 @@
         });
       }
 
-      btn.onclick = () => {
-        const isOpen = detailsTr.style.display !== 'none';
-        detailsTr.style.display = isOpen ? 'none' : '';
-        btn.textContent = isOpen ? '▶' : '▼';
-      };
-
+      const dateText = escapeHtml(fmtDate(w.created_at_ts || 0));
+      // Compact one-line summary for mobile (only first cell is shown there).
+      // Desktop shows separate columns.
       tr.innerHTML = `
-        <td data-label="Szczegóły"></td>
-        <td data-label="Data">${escapeHtml(fmtDate(w.created_at_ts || 0))}</td>
+        <td data-label="Data">
+          <div class="war-line">
+            <span class="w-date">${dateText}</span>
+            <span class="pill ${pillClass}">${escapeHtml(res)}</span>
+            <span class="w-diff">${escapeHtml((diff >= 0 ? '+' : '') + diff)}</span>
+            <span class="w-opp">${escapeHtml(opp)}</span>
+            <span class="w-mode-short" title="${escapeHtml(modeFull)}">${escapeHtml(modeShort)}</span>
+          </div>
+          <span class="w-date-only">${dateText}</span>
+        </td>
         <td data-label="Wynik"><span class="pill ${pillClass}">${escapeHtml(res)}</span></td>
         <td class="right" data-label="Różnica">${escapeHtml((diff >= 0 ? '+' : '') + diff)}</td>
-        <td data-label="Tryb">${escapeHtml(mode)}</td>
-        <td class="right" data-label="My">${escapeHtml(w.our_score ?? '')}</td>
         <td data-label="Przeciwnik">${escapeHtml(opp)}</td>
-        <td class="right" data-label="Ich wynik">${escapeHtml((w.opponent_score ?? w.enemy_score ?? '') + '')}</td>
-        <td class="right" data-label="Poza rosterem">${oorN ? `<span class="pill warn">${oorN}</span>` : '0'}</td>
+        <td data-label="Tryb" title="${escapeHtml(modeFull)}">${escapeHtml(modeShort)}</td>
       `;
-      tr.children[0].appendChild(btn);
+
+      // Toggle details by clicking the whole war row.
+      // Do not toggle when clicking inside an already-open details block.
+      const toggleDetails = () => {
+        const isOpen = detailsTr.style.display !== 'none';
+        detailsTr.style.display = isOpen ? 'none' : '';
+      };
+      tr.onclick = toggleDetails;
+      tr.onkeydown = (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          toggleDetails();
+        }
+      };
+      tr.setAttribute('tabindex', '0');
+      detailsTr.onclick = (e) => e.stopPropagation();
       tbody.appendChild(tr);
       tbody.appendChild(detailsTr);
     }
