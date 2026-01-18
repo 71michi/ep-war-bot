@@ -387,7 +387,8 @@
 
       const tbody = document.querySelector('#rosterTable tbody');
       tbody.innerHTML = '';
-      expanded = false;
+      // Preserve the current "Pokaż więcej/mniej" state when changing X,
+      // so the user doesn't need to re-expand the list every time.
 
       rows.forEach((r, idx) => {
         const tr = document.createElement('tr');
@@ -399,7 +400,8 @@
         if (isMore) {
           tr.classList.add('more-row');
           detailsTr.classList.add('more-row');
-          tr.style.display = 'none';
+          // Keep "more" rows visible if the user previously clicked "Pokaż więcej".
+          tr.style.display = expanded ? '' : 'none';
           detailsTr.style.display = 'none';
         }
 
@@ -486,7 +488,7 @@
       const btn = document.getElementById('rosterToggleBtn');
       if (rest.length > 0) {
         btn.style.display = '';
-        btn.textContent = 'Pokaż więcej';
+        btn.textContent = expanded ? 'Pokaż mniej' : 'Pokaż więcej';
         btn.title = `Pokaż ${rest.length} pozostałych`;
         btn.onclick = () => {
           expanded = !expanded;
