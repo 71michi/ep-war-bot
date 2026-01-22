@@ -376,6 +376,10 @@ async def start_keepalive_server():
 
     app = web.Application()
 
+    # Serve static web assets (icons, css, etc.)
+    web_root = os.path.join(os.path.dirname(__file__), "web")
+    app.router.add_static("/static/", web_root, show_index=False)
+
     async def health(_request):
         return web.Response(text="ok", content_type="text/plain")
 

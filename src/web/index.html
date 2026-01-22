@@ -60,6 +60,15 @@
       color: #d7deea;
       opacity: 0.95;
     }
+
+    .w-mode-wrap { position: relative; display: inline-flex; align-items: center; }
+    .mode-icon-btn { display: none; border: 0; background: transparent; padding: 0; margin-left: 6px; cursor: pointer; }
+    .mode-icon-btn:active { transform: scale(0.98); }
+    .mode-icon { width: 20px; height: 20px; border-radius: 50%; box-shadow: 0 0 0 1px #1c2533; }
+    .mode-tooltip { position: absolute; right: 0; top: 26px; z-index: 50; display: none; padding: 6px 8px; border-radius: 8px;
+      background: rgba(15,17,21,0.98); border: 1px solid #273140; color: #e7e7e7; font-size: 12px; white-space: nowrap; box-shadow: 0 10px 25px rgba(0,0,0,0.35); }
+    .w-mode-wrap.open .mode-tooltip { display: block; }
+
     .w-date-only { display: inline; }
 
     /* Average table row toggle */
@@ -177,6 +186,10 @@
       #warsTable tr.war-row td:first-child { display: block; }
       #warsTable td::before { content: ''; }
       .war-line { display: flex; }
+
+      /* On mobile show mode icon instead of abbreviation */
+      .w-mode-short { display: none; }
+      .mode-icon-btn { display: inline-flex; }
       .w-date-only { display: none; }
 
       /* Wiersz szczegółów jako blok pod kartą */
@@ -310,7 +323,63 @@
     return ab.slice(0, 4);
   }
 
-  async function loadAll() {
+
+  function normalizeModeKey(s) {
+    return String(s || '')
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu, '')
+      .replace(/\s+/g, ' ');
+  }
+
+  const MODE_ICON_MAP = (() => {
+    // Keys are normalized (lowercase, no diacritics)
+    const m = new Map();
+    m.set(normalizeModeKey('Grad strzał'), 'icon_final_3.png');
+    m.set(normalizeModeKey('Horda nieumarłych'), 'icon_final_1.png');
+    m.set(normalizeModeKey('Krwawa wojna'), 'icon_final_2.png');
+    m.set(normalizeModeKey('Lepszy atak'), 'icon_final_6.png');
+    m.set(normalizeModeKey('Starożytny upiór'), 'icon_final_7.png');
+    m.set(normalizeModeKey('Szturm'), 'icon_final_4.png');
+    m.set(normalizeModeKey('Wojenne wyrównanie'), 'icon_final_8.png');
+    m.set(normalizeModeKey('Żar z nieba'), 'icon_final_9.png');
+    m.set(normalizeModeKey('Pole koniczyny'), 'icon_final_5.png');
+    return m;
+  })();
+
+  function getModeIconSrc(modeFull) {
+    const key = normalizeModeKey(modeFull);
+    const file = MODE_ICON_MAP.get(key);
+    const placeholder = "data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2264%22 height=%2264%22%3E%3Crect width=%2264%22 height=%2264%22 rx=%2232%22 ry=%2232%22 fill=%22%231c2533%22/%3E%3Ctext x=%2232%22 y=%2242%22 font-size=%2234%22 text-anchor=%22middle%22 fill=%22%23e7e7e7%22 font-family=%22Arial%22%3E%3F%3C/text%3E%3C/svg%3E";
+    return file ? `/static/icons/${file}` : placeholder;
+  }
+
+  // Tooltip handling: click icon to toggle, click anywhere else to close.
+  function closeAllModeTooltips(exceptWrap) {
+    document.querySelectorAll('.w-mode-wrap.open').forEach(w => {
+      if (exceptWrap && w === exceptWrap) return;
+      w.classList.remove('open');
+    });
+  }
+
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest && e.target.closest('.mode-icon-btn');
+    if (btn) {
+      e.preventDefault();
+      e.stopPropagation();
+      const wrap = btn.closest('.w-mode-wrap');
+      if (!wrap) return;
+      const willOpen = !wrap.classList.contains('open');
+      closeAllModeTooltips();
+      if (willOpen) wrap.classList.add('open');
+      return;
+    }
+    closeAllModeTooltips();
+  });
+
+
+    async function loadAll() {
     const [warsResp, rosterResp] = await Promise.all([
       fetch('/api/wars'),
       fetch('/api/roster')
@@ -585,7 +654,13 @@
             <span class="pill ${pillClass}">${escapeHtml(res)}</span>
             <span class="w-diff">${escapeHtml((diff >= 0 ? '+' : '') + diff)}</span>
             <span class="w-opp">${escapeHtml(opp)}</span>
-            <span class="w-mode-short" title="${escapeHtml(modeFull)}">${escapeHtml(modeShort)}</span>
+            <span class="w-mode-wrap" data-mode-full="${escapeHtml(modeFull)}">
+              <button class="mode-icon-btn" type="button" aria-label="Tryb wojny">
+                <img class="mode-icon" src="${escapeHtml(getModeIconSrc(modeFull))}" alt="${escapeHtml(modeFull)}"/>
+              </button>
+              <span class="w-mode-short" title="${escapeHtml(modeFull)}">${escapeHtml(modeShort)}</span>
+              <span class="mode-tooltip" role="tooltip">${escapeHtml(modeFull)}</span>
+            </span>
           </div>
           <span class="w-date-only">${dateText}</span>
         </td>
