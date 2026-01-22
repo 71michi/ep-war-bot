@@ -850,6 +850,8 @@
         tr.addEventListener('click', (e) => {
           // Allow text selection without toggling if user is selecting.
           if (window.getSelection && String(window.getSelection()).length > 0) return;
+          // Clicking mode icon/tooltip should not toggle war details.
+          if (e.target && e.target.closest && e.target.closest('.w-mode-wrap')) return;
           toggle();
         });
         tr.addEventListener('keydown', (e) => {
