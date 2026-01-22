@@ -106,6 +106,20 @@
       color: #d7deea;
     }
 
+    /* Min / max highlight in expanded points list */
+    .pts-chip.pts-min {
+      border-color: rgba(231, 76, 60, 0.55);
+      background: rgba(231, 76, 60, 0.12);
+      color: rgba(231, 76, 60, 0.98);
+      font-weight: 700;
+    }
+    .pts-chip.pts-max {
+      border-color: rgba(46, 204, 113, 0.55);
+      background: rgba(46, 204, 113, 0.12);
+      color: rgba(46, 204, 113, 0.98);
+      font-weight: 700;
+    }
+
     /* Zmiana pozycji w rankingu średniej (wpływ ostatniej wojny) */
     .rank-up { color: rgba(46, 204, 113, 0.95); font-weight: 700; }
     .rank-down { color: rgba(231, 76, 60, 0.95); font-weight: 700; }
@@ -245,10 +259,27 @@
       font-weight: 800;
     }
 
+    /* Stopka */
+    footer.site-footer {
+      margin-top: 18px;
+      padding: 14px 4px 6px;
+      border-top: 1px solid #222a35;
+      color: #a8b0bd;
+      font-size: 12px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+    }
+    footer.site-footer .footer-left { display: inline-flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    footer.site-footer a { color: #c9d2e0; text-decoration: none; border-bottom: 1px solid rgba(201,210,224,0.25); }
+    footer.site-footer a:hover { border-bottom-color: rgba(201,210,224,0.6); }
+
 </style>
 </head>
 <body>
-  <h1>G3W War Dashboard</h1>
+
 
   <div class="card">
     <div class="row" style="justify-content:space-between;">
@@ -324,7 +355,26 @@
     </div>
   </div>
 
+  <footer class="site-footer" aria-label="Stopka">
+    <div class="footer-left">
+      <span>© 2026 Developed by Michi for G3W</span>
+      <span class="muted">•</span>
+      <span id="footerVersion" class="muted"></span>
+      <span class="muted">•</span>
+      <span id="footerBuild" class="muted"></span>
+    </div>
+    <div>
+      <a href="/static/release-notes.html" target="_blank" rel="noopener">Release notes</a>
+    </div>
+  </footer>
+
 <script>
+  // Footer metadata
+  const APP_VERSION = 'v3.4.10';
+  const BUILD_INFO = 'build: 2026-01-22 18:15:23 CET';
+  document.getElementById('footerVersion').textContent = APP_VERSION;
+  document.getElementById('footerBuild').textContent = BUILD_INFO;
+
   const fmtDate = (ts) => {
     try {
       const d = new Date(ts * 1000);
@@ -899,10 +949,21 @@
 
         const chips = document.createElement('span');
         chips.className = 'points-chips';
+
+        // Highlight min/max values in the player's recent war points (ignore missing '-').
+        const nums = (r.points || []).filter(v => typeof v === 'number' && !Number.isNaN(v));
+        const minVal = nums.length ? Math.min(...nums) : null;
+        const maxVal = nums.length ? Math.max(...nums) : null;
         for (const v of (r.points || [])) {
           const chip = document.createElement('span');
           chip.className = 'pts-chip';
           chip.textContent = (v === null || v === undefined) ? '-' : String(v);
+
+          // If all values are equal (min==max), don't highlight.
+          if (typeof v === 'number' && minVal !== null && maxVal !== null && minVal !== maxVal) {
+            if (v === minVal) chip.classList.add('pts-min');
+            if (v === maxVal) chip.classList.add('pts-max');
+          }
           chips.appendChild(chip);
         }
 
@@ -934,8 +995,8 @@
           <td class="right">${idx + 1}</td>
           <td class="right small">${trendHtml(idx + 1, r.name)}</td>
           <td></td>
-          <td class="right">${r.warsCount < x ? `<span class="excl" title="Brak pełnej liczby wojen (${r.warsCount}/${x})">!</span>` : ``}${r.avg.toFixed(1)}</td>
-          <td class="right">${r.warsCount}/${x}</td>
+          <td class="right">${r.avg.toFixed(1)}</td>
+          <td class="right">${r.warsCount < x ? `<span class="excl" title="Brak pełnej liczby wojen (${r.warsCount}/${x})">!</span>` : ``}${r.warsCount}/${x}</td>
         `;
         tr.classList.add('avg-row');
         if (idx === 0) tr.classList.add('podium-1');
