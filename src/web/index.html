@@ -215,7 +215,37 @@
       .players-table { display: none; }
       .players-mobile { display: flex; flex-direction: column; gap: 8px; }
     }
-  </style>
+  
+    .mode-cell {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      white-space: nowrap;
+      max-width: 280px;
+    }
+    .mode-icon-inline {
+      width: 18px;
+      height: 18px;
+      border-radius: 999px;
+      border: 1px solid #2a3442;
+      background: #0f1115;
+      flex: 0 0 auto;
+    }
+    .mode-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 240px;
+      display: inline-block;
+      vertical-align: middle;
+    }
+    .excl {
+      display: inline-block;
+      margin-right: 6px;
+      color: #ff5c5c;
+      font-weight: 800;
+    }
+
+</style>
 </head>
 <body>
   <h1>G3W War Dashboard</h1>
@@ -717,16 +747,19 @@
               <button class="mode-icon-btn" type="button" aria-label="Tryb wojny">
                 <img class="mode-icon" src="${escapeHtml(getModeIconSrc(modeFull))}" alt="${escapeHtml(modeFull)}"/>
               </button>
-              <span class="w-mode-short" title="${escapeHtml(modeFull)}">${escapeHtml(modeShort)}</span>
-              
-            </span>
+                          </span>
           </div>
           <span class="w-date-only">${dateText}</span>
         </td>
         <td data-label="Wynik"><span class="pill ${pillClass}">${escapeHtml(res)}</span></td>
         <td class="right" data-label="Różnica">${escapeHtml((diff >= 0 ? '+' : '') + diff)}</td>
         <td data-label="Przeciwnik">${escapeHtml(opp)}</td>
-        <td data-label="Tryb" title="${escapeHtml(modeFull)}">${escapeHtml(modeShort)}</td>
+        <td data-label="Tryb">
+          <span class="mode-cell" title="${escapeHtml(modeFull)}">
+            <img class="mode-icon mode-icon-inline" src="${escapeHtml(getModeIconSrc(modeFull))}" alt="${escapeHtml(modeFull)}"/>
+            <span class="mode-name">${escapeHtml(modeFull)}</span>
+          </span>
+        </td>
       `;
 
       // Toggle details by clicking the whole war row.
@@ -766,7 +799,7 @@
       opt.textContent = String(i);
       sel.appendChild(opt);
     }
-    sel.value = String(Math.min(5, max));
+    sel.value = String(Math.min(10, max));
 
     let expanded = false;
     const render = () => {
@@ -901,7 +934,7 @@
           <td class="right">${idx + 1}</td>
           <td class="right small">${trendHtml(idx + 1, r.name)}</td>
           <td></td>
-          <td class="right">${r.avg.toFixed(1)}</td>
+          <td class="right">${r.warsCount < x ? `<span class="excl" title="Brak pełnej liczby wojen (${r.warsCount}/${x})">!</span>` : ``}${r.avg.toFixed(1)}</td>
           <td class="right">${r.warsCount}/${x}</td>
         `;
         tr.classList.add('avg-row');
