@@ -65,9 +65,10 @@
     .mode-icon-btn { display: none; border: 0; background: transparent; padding: 0; margin-left: 6px; cursor: pointer; }
     .mode-icon-btn:active { transform: scale(0.98); }
     .mode-icon { width: 20px; height: 20px; border-radius: 50%; box-shadow: 0 0 0 1px #1c2533; }
-    .mode-tooltip { position: absolute; right: 0; top: 26px; z-index: 50; display: none; padding: 6px 8px; border-radius: 8px;
-      background: rgba(15,17,21,0.98); border: 1px solid #273140; color: #e7e7e7; font-size: 12px; white-space: nowrap; box-shadow: 0 10px 25px rgba(0,0,0,0.35); }
-    .w-mode-wrap.open .mode-tooltip { display: block; }
+    .mode-tooltip-portal { position: fixed; z-index: 9999; display: none; padding: 6px 8px; border-radius: 8px;
+      background: rgba(15,17,21,0.98); border: 1px solid #273140; color: #e7e7e7; font-size: 12px; white-space: nowrap;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.35); pointer-events: none; }
+    .mode-tooltip-portal.show { display: block; }
 
     .w-date-only { display: inline; }
 
@@ -362,14 +363,62 @@
     return file ? `/static/icons/${file}` : placeholder;
   }
 
-  // Tooltip handling: click icon to toggle, click anywhere else to close.
-  function closeAllModeTooltips(exceptWrap) {
-    document.querySelectorAll('.w-mode-wrap.open').forEach(w => {
-      if (exceptWrap && w === exceptWrap) return;
-      w.classList.remove('open');
+  // Tooltip handling (mobile mode icon):
+  // We render a single tooltip "portal" attached to <body>, positioned with `position:fixed`,
+  // so it never gets clipped by table/container overflow (iOS Safari).
+  const modeTooltipPortal = (() => {
+    const el = document.createElement('div');
+    el.className = 'mode-tooltip-portal';
+    el.setAttribute('role', 'tooltip');
+    document.body.appendChild(el);
+    return el;
+  })();
+
+  let openModeTooltipFor = null; // HTMLElement (.w-mode-wrap) currently owning the tooltip
+
+  function hideModeTooltipPortal() {
+    openModeTooltipFor = null;
+    modeTooltipPortal.classList.remove('show');
+    modeTooltipPortal.textContent = '';
+  }
+
+  function showModeTooltipPortal(btnEl, wrapEl) {
+    const modeFull = (wrapEl && wrapEl.dataset && wrapEl.dataset.modeFull) ? wrapEl.dataset.modeFull : '';
+    if (!modeFull) return;
+
+    // Toggle: clicking the same icon closes it.
+    if (openModeTooltipFor === wrapEl && modeTooltipPortal.classList.contains('show')) {
+      hideModeTooltipPortal();
+      return;
+    }
+
+    openModeTooltipFor = wrapEl;
+    modeTooltipPortal.textContent = modeFull;
+    modeTooltipPortal.classList.add('show');
+
+    // Position after layout, then clamp inside viewport.
+    requestAnimationFrame(() => {
+      const rect = btnEl.getBoundingClientRect();
+      const tipRect = modeTooltipPortal.getBoundingClientRect();
+
+      const pad = 8;
+      // Prefer below the icon; if not enough space, place above.
+      let top = rect.bottom + 6;
+      if (top + tipRect.height + pad > window.innerHeight) {
+        top = rect.top - tipRect.height - 6;
+      }
+      top = Math.max(pad, Math.min(top, window.innerHeight - tipRect.height - pad));
+
+      // Align right edge with icon right edge (nice on lists), then clamp.
+      let left = rect.right - tipRect.width;
+      left = Math.max(pad, Math.min(left, window.innerWidth - tipRect.width - pad));
+
+      modeTooltipPortal.style.top = `${top}px`;
+      modeTooltipPortal.style.left = `${left}px`;
     });
   }
 
+  // Capture phase so we intercept before the war-row click handler.
   document.addEventListener('click', (e) => {
     const btn = e.target.closest && e.target.closest('.mode-icon-btn');
     if (btn) {
@@ -377,16 +426,19 @@
       e.stopPropagation();
       const wrap = btn.closest('.w-mode-wrap');
       if (!wrap) return;
-      const willOpen = !wrap.classList.contains('open');
-      closeAllModeTooltips();
-      if (willOpen) wrap.classList.add('open');
+      showModeTooltipPortal(btn, wrap);
       return;
     }
-    closeAllModeTooltips();
+    // Click anywhere else closes.
+    hideModeTooltipPortal();
   }, true);
 
+  // Close tooltip on scroll/resize (mobile UX)
+  window.addEventListener('scroll', hideModeTooltipPortal, { passive: true });
+  window.addEventListener('resize', hideModeTooltipPortal);
 
-    async function loadAll() {
+
+  async function loadAll() {
     const [warsResp, rosterResp] = await Promise.all([
       fetch('/api/wars'),
       fetch('/api/roster')
@@ -666,7 +718,7 @@
                 <img class="mode-icon" src="${escapeHtml(getModeIconSrc(modeFull))}" alt="${escapeHtml(modeFull)}"/>
               </button>
               <span class="w-mode-short" title="${escapeHtml(modeFull)}">${escapeHtml(modeShort)}</span>
-              <span class="mode-tooltip" role="tooltip">${escapeHtml(modeFull)}</span>
+              
             </span>
           </div>
           <span class="w-date-only">${dateText}</span>
