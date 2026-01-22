@@ -383,7 +383,7 @@
       return;
     }
     closeAllModeTooltips();
-  });
+  }, true);
 
 
     async function loadAll() {
@@ -683,7 +683,11 @@
         const isOpen = detailsTr.style.display !== 'none';
         detailsTr.style.display = isOpen ? 'none' : '';
       };
-      tr.onclick = toggleDetails;
+      tr.onclick = (e) => {
+        // Clicking the mode icon / tooltip should only toggle the tooltip, not expand the war.
+        if (e && e.target && e.target.closest && e.target.closest('.w-mode-wrap')) return;
+        toggleDetails();
+      };
       tr.onkeydown = (e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
