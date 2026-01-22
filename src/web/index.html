@@ -74,6 +74,14 @@
     /* Average table row toggle */
     .avg-row { cursor: pointer; }
     .avg-row:hover { background: rgba(255,255,255,0.025); }
+    /* Podium dla TOP 3 w tabeli średnich */
+    .avg-row.podium-1 td { background: rgba(255, 215, 0, 0.10); }
+    .avg-row.podium-2 td { background: rgba(192, 192, 192, 0.10); }
+    .avg-row.podium-3 td { background: rgba(205, 127, 50, 0.10); }
+    .avg-row.podium-1:hover td { background: rgba(255, 215, 0, 0.14); }
+    .avg-row.podium-2:hover td { background: rgba(192, 192, 192, 0.14); }
+    .avg-row.podium-3:hover td { background: rgba(205, 127, 50, 0.14); }
+
 
     /* Szczegoly w tabeli srednich rozwijane sa kliknieciem w caly wiersz */
     .details-row td { background: rgba(255,255,255,0.015); }
@@ -274,7 +282,6 @@
             <th class="right" title="Jak ostatnia wojna wpłynęła na pozycję w rankingu średniej">Δ</th>
             <th>Nick (roster)</th>
             <th class="right">Średnia</th>
-            <th class="right">Suma</th>
             <th class="right">Wojen z pkt</th>
           </tr>
         </thead>
@@ -340,8 +347,8 @@
     m.set(normalizeModeKey('Horda nieumarłych'), 'icon_final_1.png');
     m.set(normalizeModeKey('Krwawa wojna'), 'icon_final_2.png');
     m.set(normalizeModeKey('Lepszy atak'), 'icon_final_6.png');
-    m.set(normalizeModeKey('Starożytny upiór'), 'icon_final_7.png');
-    m.set(normalizeModeKey('Szturm'), 'icon_final_4.png');
+    m.set(normalizeModeKey('Starożytny upiór'), 'icon_final_4.png');
+    m.set(normalizeModeKey('Szturm'), 'icon_final_7.png');
     m.set(normalizeModeKey('Wojenne wyrównanie'), 'icon_final_8.png');
     m.set(normalizeModeKey('Żar z nieba'), 'icon_final_9.png');
     m.set(normalizeModeKey('Pole koniczyny'), 'icon_final_5.png');
@@ -791,7 +798,7 @@
 
         // Details row (hidden by default). We only expand it by clicking the arrow next to the nick.
         const tdDetails = document.createElement('td');
-        tdDetails.colSpan = 6;
+        tdDetails.colSpan = 5;
         tdDetails.className = 'small muted';
 
         const detailWrap = document.createElement('div');
@@ -839,10 +846,12 @@
           <td class="right small">${trendHtml(idx + 1, r.name)}</td>
           <td></td>
           <td class="right">${r.avg.toFixed(1)}</td>
-          <td class="right">${r.sum}</td>
           <td class="right">${r.warsCount}/${x}</td>
         `;
         tr.classList.add('avg-row');
+        if (idx === 0) tr.classList.add('podium-1');
+        else if (idx === 1) tr.classList.add('podium-2');
+        else if (idx === 2) tr.classList.add('podium-3');
         tr.setAttribute('role', 'button');
         tr.setAttribute('tabindex', '0');
         tr.setAttribute('aria-expanded', 'false');
