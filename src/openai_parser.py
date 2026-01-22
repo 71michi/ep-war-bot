@@ -54,11 +54,13 @@ class ChatSliceResults(BaseModel):
 
 
 class WarSummary(BaseModel):
-    our_alliance: str
-    opponent_alliance: str
-    result: Literal["Zwycięstwo", "Porażka"]
-    our_score: int
-    opponent_score: int
+    # NOTE: fields are Optional to support the '1 screenshot' workflow
+    # where the user may need to fill the missing war summary manually.
+    our_alliance: Optional[str] = None
+    opponent_alliance: Optional[str] = None
+    result: Optional[Literal["Zwycięstwo", "Porażka"]] = None
+    our_score: Optional[int] = None
+    opponent_score: Optional[int] = None
     war_mode: Optional[str] = None
     beta_badge: Optional[bool] = None
 

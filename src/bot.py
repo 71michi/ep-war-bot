@@ -4,6 +4,8 @@ import asyncio
 import logging
 import time
 import uuid
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 import io
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
@@ -1196,8 +1198,18 @@ def build_post(summary: WarSummary, players: List[PlayerScore], expected_max_ran
 def render_post(post: WarPost) -> str:
     s = post.summary
 
-    # Score diff: positive => win, negative => loss. Render wants a visible sign.
-    diff = int(s.our_score) - int(s.opponent_score)
+    # Some workflows allow creating a DRAFT from a single screenshot (CHAT only).
+    # In that case, parts of the war summary can be missing and will be filled manually.
+    try:
+        our_score = int(s.our_score or 0)
+    except Exception:
+        our_score = 0
+    try:
+        opp_score = int(s.opponent_score or 0)
+    except Exception:
+        opp_score = 0
+
+    diff = our_score - opp_score
     if diff > 0:
         badge = "🟢"
     elif diff < 0:
@@ -1205,15 +1217,34 @@ def render_post(post: WarPost) -> str:
     else:
         badge = "⚪"
 
+    result_disp = s.result if getattr(s, 'result', None) else "?(brak)"
+    our_all = (s.our_alliance or "?(brak)") if getattr(s, 'our_alliance', None) is not None else "?(brak)"
+    opp_all = (s.opponent_alliance or "?(brak)") if getattr(s, 'opponent_alliance', None) is not None else "?(brak)"
+    our_score_disp = str(s.our_score) if s.our_score is not None else "?"
+    opp_score_disp = str(s.opponent_score) if s.opponent_score is not None else "?"
+
     header = (
-        f"**Wojna zakończona: {badge} {s.result} ({diff:+d})**\n"
-        f"**{s.our_alliance}** {s.our_score} — {s.opponent_score} **{s.opponent_alliance}**\n"
+        f"**Wojna zakończona: {badge} {result_disp} ({diff:+d})**\n"
+        f"**{our_all}** {our_score_disp} — {opp_score_disp} **{opp_all}**\n"
     )
-    if s.war_mode:
-        mode_disp = s.war_mode.strip().upper() if isinstance(s.war_mode, str) else str(s.war_mode)
-        header += f"Tryb: **{mode_disp}**" + (" (BETA)\n" if s.beta_badge else "\n")
+
+    wm_val = getattr(s, "war_mode", None)
+    wm = wm_val.strip() if isinstance(wm_val, str) else (str(wm_val) if wm_val is not None else "")
+    wm = wm.strip()
+    if wm:
+        header += f"Tryb: **{wm.upper()}**" + (" (BETA)\n" if s.beta_badge else "\n")
+    else:
+        header += "Tryb: *(brak / do uzupełnienia)*\n"
+
     if post.war_id:
         header += f"ID: `{post.war_id}`\n"
+    # Optional manual war date override
+    if getattr(post, 'created_at_ts', None):
+        try:
+            dt = datetime.fromtimestamp(int(post.created_at_ts), tz=ZoneInfo('Europe/Warsaw'))
+            header += f"Data: `{dt.strftime('%Y-%m-%d %H:%M')}` (Europe/Warsaw)\n"
+        except Exception:
+            pass
     header += "\n"
 
     lines_out: List[str] = []
@@ -1237,12 +1268,29 @@ def render_post(post: WarPost) -> str:
     out_of_roster = post.out_of_roster_ranks()
     points_sum = post.total_points_sum()
     try:
-        alliance_total = int(s.our_score)
+        alliance_total = int(s.our_score or 0)
     except Exception:
         alliance_total = 0
     sum_mismatch = bool(alliance_total and points_sum != alliance_total)
 
-    if missing or unknown or out_of_roster or sum_mismatch:
+    # Missing war summary fields (for the 1-screenshot workflow or when OCR misses parts of SOJUSZ).
+    summary_missing: List[str] = []
+    if not (getattr(s, "our_alliance", None) or "").strip():
+        summary_missing.append("nasz sojusz")
+    if not (getattr(s, "opponent_alliance", None) or "").strip():
+        summary_missing.append("sojusz przeciwnika")
+    if getattr(s, "result", None) not in {"Zwycięstwo", "Porażka"}:
+        summary_missing.append("rezultat (Zwycięstwo/Porażka)")
+    if getattr(s, "our_score", None) is None:
+        summary_missing.append("wynik naszego sojuszu")
+    if getattr(s, "opponent_score", None) is None:
+        summary_missing.append("wynik przeciwnika")
+    wm_chk = (getattr(s, "war_mode", None) or "").strip().upper() if isinstance(getattr(s, "war_mode", None), str) else str(getattr(s, "war_mode", "")).strip().upper()
+    if not wm_chk or wm_chk == "UNKNOWN":
+        summary_missing.append("tryb wojenny")
+    need_fix_summary = bool(summary_missing)
+
+    if missing or unknown or out_of_roster or sum_mismatch or need_fix_summary:
         warn_lines: List[str] = ["", "⚠️ **Wymagane poprawki**"]
         if missing:
             warn_lines.append("• Brakujące pozycje: " + ", ".join(str(x) for x in missing))
@@ -1261,6 +1309,11 @@ def render_post(post: WarPost) -> str:
                 raw = raw.replace("`", "'")
                 parts2.append(f"{r}(\"{raw}\")")
             warn_lines.append("• Poza rosterem (gracz nie widnieje w rosterze): " + ", ".join(parts2))
+
+            if need_fix_summary:
+                warn_lines.append("• Brakujące dane podsumowania: " + ", ".join(summary_missing))
+                warn_lines.append("  Uzupełnij reply: `TRYB <tryb>`, `WYNIK <nasz> <wrog>`, `SOJUSZE <nasz> vs <wrog>`, `REZULTAT Zwycięstwo/Porażka`")
+                warn_lines.append("  albo jedną linijką: `SUMMARY <nasz> | <wrog> | <rezultat> | <nasz_score> | <wrog_score> | <tryb>`")
 
         if sum_mismatch:
             diff_pts = points_sum - alliance_total
@@ -1303,10 +1356,18 @@ def _post_to_store_record(
       - confirmed: approved by ADDWAR (shown on the website)
     """
     s = post.summary
-    diff = int(s.our_score) - int(s.opponent_score)
+    try:
+        our_score = int(s.our_score or 0)
+    except Exception:
+        our_score = 0
+    try:
+        opp_score = int(s.opponent_score or 0)
+    except Exception:
+        opp_score = 0
+    diff = our_score - opp_score
     points_sum = post.total_points_sum()
     try:
-        alliance_total = int(s.our_score)
+        alliance_total = int(s.our_score or 0)
     except Exception:
         alliance_total = 0
     points_sum_matches_alliance = bool(alliance_total and points_sum == alliance_total)
@@ -1339,6 +1400,11 @@ def _post_to_store_record(
             channel_id = None
     else:
         created_ts = int(post.created_at_ts or now_ts)
+        # If war date was set manually, synthesize an ISO string for the store.
+        try:
+            created_iso = datetime.fromtimestamp(created_ts, tz=timezone.utc).isoformat()
+        except Exception:
+            created_iso = None
         ref_jump = post.ref_jump_url
         guild_id = post.guild_id
         channel_id = post.channel_id
@@ -1564,6 +1630,179 @@ def _parse_manual_corrections(text: str) -> List[Tuple[int, str, Optional[int]]]
 
         out.append((rank, nick, points))
     return out
+
+
+def _normalize_result_token(tok: str) -> Optional[str]:
+    t = (tok or "").strip().lower()
+    if not t:
+        return None
+
+
+
+def _parse_user_date_to_ts(text: str) -> Optional[int]:
+    """Parse a user-provided date/time into a Unix timestamp (Europe/Warsaw).
+
+    Supported examples:
+      - 2026-01-22
+      - 2026-01-22 18:30
+      - 22.01.2026
+      - 22.01.2026 18:30
+      - 22-01-2026
+    If time is omitted, we assume 12:00 to avoid timezone edge cases.
+    """
+    t = (text or "").strip()
+    if not t:
+        return None
+
+    # Normalize separators
+    t = t.replace("/", "-").replace(".", "-")
+    # Split date and optional time
+    parts = t.split()
+    dpart = parts[0].strip()
+    time_part = parts[1].strip() if len(parts) >= 2 else ""
+
+    hh = 12
+    mm = 0
+    if time_part:
+        m = re.match(r"^(\d{1,2}):(\d{2})$", time_part)
+        if m:
+            hh = max(0, min(23, int(m.group(1))))
+            mm = max(0, min(59, int(m.group(2))))
+
+    # YYYY-MM-DD
+    m1 = re.match(r"^(\d{4})-(\d{1,2})-(\d{1,2})$", dpart)
+    if m1:
+        y, mo, da = int(m1.group(1)), int(m1.group(2)), int(m1.group(3))
+    else:
+        # DD-MM-YYYY
+        m2 = re.match(r"^(\d{1,2})-(\d{1,2})-(\d{4})$", dpart)
+        if not m2:
+            return None
+        da, mo, y = int(m2.group(1)), int(m2.group(2)), int(m2.group(3))
+
+    try:
+        tz = ZoneInfo("Europe/Warsaw")
+        dt = datetime(y, mo, da, hh, mm, 0, tzinfo=tz)
+        return int(dt.timestamp())
+    except Exception:
+        return None
+    if "zwy" in t or t in {"win", "w"}:
+        return "Zwycięstwo"
+    if "por" in t or t in {"loss", "l"}:
+        return "Porażka"
+    return None
+
+
+def _parse_summary_update(text: str) -> Optional[Dict[str, object]]:
+    """Parse war-summary manual updates (reply to the bot's LISTWAR message).
+
+    Supported commands (1 line):
+      - TRYB <mode>
+      - MODE <mode>
+      - WYNIK <our_score> <opp_score>
+      - SCORE <our_score> <opp_score>
+      - SOJUSZE <our_alliance> vs <opponent_alliance>
+      - ALLIANCES <our_alliance> vs <opponent_alliance>
+      - REZULTAT Zwycięstwo|Porażka  (also: WIN/LOSS)
+      - RESULT Zwycięstwo|Porażka
+      - SUMMARY <our_alliance> | <opponent_alliance> | <result> | <our_score> | <opp_score> | <war_mode>
+
+    Returns a dict with fields to update, or None if the text is not a summary command.
+    """
+    if not text:
+        return None
+
+    line = (text.strip().splitlines()[0] or "").strip()
+    if not line:
+        return None
+
+    # SUMMARY: pipe-delimited to allow spaces in alliance names.
+    m = re.match(r"^(SUMMARY|PODSUMOWANIE)\b\s+(.+)$", line, flags=re.IGNORECASE)
+    if m:
+        rest = m.group(2).strip()
+        parts = [p.strip() for p in rest.split("|")]
+        if len(parts) >= 5:
+            out: Dict[str, object] = {}
+            out["our_alliance"] = parts[0] or None
+            out["opponent_alliance"] = parts[1] or None
+            res = _normalize_result_token(parts[2])
+            if res:
+                out["result"] = res
+            try:
+                out["our_score"] = int(parts[3])
+            except Exception:
+                pass
+            try:
+                out["opponent_score"] = int(parts[4])
+            except Exception:
+                pass
+            if len(parts) >= 6 and parts[5]:
+                out["war_mode"] = parts[5].strip().upper()
+            return out if out else None
+        return None
+
+    # TRYB / MODE
+    m = re.match(r"^(TRYB|MODE|WAR_MODE)\b\s+(.+)$", line, flags=re.IGNORECASE)
+    if m:
+        wm = m.group(2).strip()
+        if wm:
+            return {"war_mode": wm.strip().upper()}
+        return None
+
+    # DATA / DATE (manual war date override)
+    m = re.match(r"^(DATA|DATE)\b\s+(.+)$", line, flags=re.IGNORECASE)
+    if m:
+        ts = _parse_user_date_to_ts(m.group(2))
+        if ts is not None:
+            return {"created_at_ts": int(ts)}
+        return None
+
+    # WYNIK / SCORE
+    m = re.match(r"^(WYNIK|SCORE)\b\s+(\d+)\s+(\d+)\s*$", line, flags=re.IGNORECASE)
+    if m:
+        return {"our_score": int(m.group(2)), "opponent_score": int(m.group(3))}
+
+    # SOJUSZE / ALLIANCES
+    m = re.match(r"^(SOJUSZE|ALLIANCES)\b\s+(.+?)\s*(?:VS|vs|—|-|:)\s*(.+)$", line)
+    if m:
+        a = (m.group(2) or "").strip()
+        b = (m.group(3) or "").strip()
+        if a or b:
+            out2: Dict[str, object] = {}
+            if a:
+                out2["our_alliance"] = a
+            if b:
+                out2["opponent_alliance"] = b
+            return out2 if out2 else None
+        return None
+
+    # REZULTAT / RESULT
+    m = re.match(r"^(REZULTAT|RESULT)\b\s+(.+)$", line, flags=re.IGNORECASE)
+    if m:
+        res = _normalize_result_token(m.group(2))
+        if res:
+            return {"result": res}
+        return None
+
+    return None
+
+
+def _summary_missing_fields(s: WarSummary) -> List[str]:
+    missing: List[str] = []
+    if not (getattr(s, "our_alliance", None) or "").strip():
+        missing.append("nasz sojusz")
+    if not (getattr(s, "opponent_alliance", None) or "").strip():
+        missing.append("sojusz przeciwnika")
+    if getattr(s, "result", None) not in {"Zwycięstwo", "Porażka"}:
+        missing.append("rezultat")
+    if getattr(s, "our_score", None) is None:
+        missing.append("wynik naszego sojuszu")
+    if getattr(s, "opponent_score", None) is None:
+        missing.append("wynik przeciwnika")
+    wm = (getattr(s, "war_mode", None) or "").strip().upper() if isinstance(getattr(s, "war_mode", None), str) else str(getattr(s, "war_mode", "")).strip().upper()
+    if not wm or wm == "UNKNOWN":
+        missing.append("tryb wojenny")
+    return missing
 
 
 def _parse_addroster(text: str) -> List[str]:
@@ -1955,9 +2194,9 @@ async def try_apply_help_channel_command(
         f"\n⏳ _Ta wiadomość zostanie usunięta za {auto_del} sekund._\n"
         "\n"
         "**Wojny**\n"
-        "• `LISTWAR` — *(reply)* na wiadomość z **2 screenami** z wojny. Bot wyśle listę wyników (DRAFT).\n"
+        "• `LISTWAR` — *(reply)* na wiadomość z **1–2 screenami**. Wymagany jest CHAT z rankingiem; SOJUSZ/podsumowanie jest opcjonalne (można uzupełnić ręcznie).\n"
         "• `23 Nick 250` — *(reply)* na wiadomość bota z listą: popraw nick i punkty na pozycji 23.\n"
-        "• `23 Nick` — *(reply)* popraw tylko nick (punkty zostają).\n"
+        "• `23 Nick` — *(reply)* popraw tylko nick (punkty zostają).\n• `TRYB <tryb>` — *(reply)* uzupełnia/zmienia tryb wojenny (np. `TRYB Lepszy atak`).\n• `WYNIK <nasz> <wrog>` — *(reply)* ustawia wynik punktowy (np. `WYNIK 5800 5750`).\n• `SOJUSZE <nasz> vs <wrog>` — *(reply)* ustawia nazwy sojuszy.\n• `REZULTAT Zwycięstwo/Porażka` — *(reply)* ustawia rezultat.\n• `SUMMARY <nasz> | <wrog> | <rezultat> | <nasz_score> | <wrog_score> | <tryb>` — *(reply)* uzupełnia wszystko naraz.\n"
         "• `ADDWAR` — *(reply)* na poprawną listę bota: **zatwierdza** i dodaje wojnę do strony (CONFIRMED).\n"
         "• `UNLISTWAR <ID>` — usuwa wojnę w statusie DRAFT (żeby zrobić LISTWAR ponownie i dostać nowe ID).\n"
         "• `REMOVEWAR <ID>` — usuwa wojnę ze strony (ID z nagłówka listy).\n"
@@ -2214,6 +2453,24 @@ async def try_apply_addwar_command(
             except Exception:
                 pass
             return True
+    # Validate: war summary must be complete (needed for web UI / mode mapping).
+    if post is not None:
+        sm = _summary_missing_fields(post.summary)
+        if sm:
+            await message.channel.send(
+                "❗ Nie mogę dodać tej wojny do strony, bo brakuje danych w podsumowaniu: " + ", ".join(sm) + ". "
+                "Uzupełnij je reply na liście bota (np. `TRYB ...`, `WYNIK ...`, `SOJUSZE ...`, `REZULTAT ...` albo `SUMMARY ...`)."
+            )
+            try:
+                await ref_msg.add_reaction("⚠️")
+            except Exception:
+                pass
+            try:
+                await message.delete()
+            except Exception:
+                pass
+            return True
+
 
     now_ts = int(time.time())
     if post is not None:
@@ -2312,6 +2569,40 @@ async def try_apply_manual_corrections(
         # we only support edits for messages we created in this runtime
         logger.warning("Manual correction: referenced msg %s not found in WAR_POSTS", ref_msg.id)
         return False
+
+    # War summary manual updates (mode/scores/alliances/result) use the same reply workflow.
+    upd = _parse_summary_update(message.content or "")
+    if upd:
+        try:
+            # Ensure summary object exists
+            if getattr(post, "summary", None) is None:
+                post.summary = WarSummary()
+            for k, v in upd.items():
+                try:
+                    if k == "created_at_ts":
+                        post.created_at_ts = int(v) if v is not None else None
+                        continue
+                    setattr(post.summary, k, v)
+                except Exception:
+                    pass
+            # Re-render and edit
+            new_content = render_post(post)
+            parts = chunk_message(new_content)
+            if len(parts) != 1:
+                new_content = parts[0]
+            await ref_msg.edit(content=new_content)
+            try:
+                await ref_msg.add_reaction("📝")
+            except Exception:
+                pass
+        except Exception:
+            logger.exception("Summary update: failed to edit war post %s", ref_msg.id)
+
+        try:
+            await message.delete()
+        except Exception:
+            pass
+        return True
 
     corrections = _parse_manual_corrections(message.content)
     if not corrections:
@@ -2484,7 +2775,7 @@ def main():
             tok0 = text.split()[0]
             tok0_clean = tok0.strip("[](){}")
             tok0_up = tok0_clean.upper()
-            if not (tok0_up in {"LISTWAR", "ADDWAR", "ADDROSTER", "REMOVEROSTER"} or tok0_clean.isdigit()):
+            if not (tok0_up in {"LISTWAR", "ADDWAR", "ADDROSTER", "REMOVEROSTER", "TRYB", "MODE", "WAR_MODE", "WYNIK", "SCORE", "SOJUSZE", "ALLIANCES", "REZULTAT", "RESULT", "SUMMARY", "PODSUMOWANIE", "DATA", "DATE"} or tok0_clean.isdigit()):
                 return
         else:
             if not text:
@@ -2636,9 +2927,9 @@ def main():
                     war_id = make_war_id_with_seq(ref_msg.id, seq)
 
                 atts = [a for a in ref_msg.attachments if is_image(a)]
-                if len(atts) < 2:
+                if len(atts) < 1:
                     await message.channel.send(
-                        "LISTWAR musi być reply na wiadomość z **dwoma** screenami (lista + podsumowanie wojny)."
+                        "LISTWAR musi być reply na wiadomość z **1–2** screenami (lista i opcjonalnie podsumowanie/sojusz)."
                     )
                     return
 
@@ -2659,12 +2950,16 @@ def main():
 
                 try:
                     logger.info(
-                        "LISTWAR using referenced attachments: #1=%s (%d bytes), #2=%s (%d bytes)",
+                        "LISTWAR using referenced attachment: #1=%s (%d bytes)",
                         atts[0].filename,
                         int(getattr(atts[0], "size", 0) or 0),
-                        atts[1].filename,
-                        int(getattr(atts[1], "size", 0) or 0),
                     )
+                    if len(atts) >= 2:
+                        logger.info(
+                            "LISTWAR using referenced attachment #2=%s (%d bytes)",
+                            atts[1].filename,
+                            int(getattr(atts[1], "size", 0) or 0),
+                        )
 
                     if cached is not None:
                         summary, players, expected_max_rank = cached
@@ -2676,7 +2971,8 @@ def main():
                         )
                         processed_images = True
                     else:
-                        images = [await atts[0].read(), await atts[1].read()]
+                        use_atts = atts[:2]
+                        images = [await a.read() for a in use_atts]
                         logger.debug("LISTWAR downloaded attachments: sizes=%s", [len(b) for b in images])
                         processed_images = True
 
@@ -2694,7 +2990,9 @@ def main():
 
                         # Store parse result for this screenshot message
                         try:
-                            if summary and players and expected_max_rank:
+                            if players and expected_max_rank:
+                                if not summary:
+                                    summary = WarSummary()
                                 WAR_PARSE_CACHE[ref_msg.id] = (summary, players, int(expected_max_rank))
                                 logger.info(
                                     "LISTWAR cached parse: ref_msg.id=%s war_id=%s players=%d max_rank=%s",
@@ -2706,17 +3004,20 @@ def main():
                         except Exception:
                             logger.exception("LISTWAR: failed to cache parse result")
 
-                    if not summary or not players:
+                    if not players:
                         logger.warning(
                             "Parser returned incomplete data: summary=%s players=%s",
                             bool(summary),
                             bool(players),
                         )
                         await message.channel.send(
-                            "Nie udało się jednoznacznie odczytać obu screenów (brak summary albo listy). "
-                            "Upewnij się, że widać cały panel z listą i paski wyniku."
+                            "Nie udało się jednoznacznie odczytać listy z chatu. "
+                            "Upewnij się, że widać cały panel z rankingiem ‘Najlepsi atakujący na wojnach’."
                         )
                         return
+
+                    if not summary:
+                        summary = WarSummary()
 
                     post = build_post(summary, players, expected_max_rank)
                     post.war_id = war_id

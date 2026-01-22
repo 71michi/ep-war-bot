@@ -12,11 +12,12 @@ class ChatResults(BaseModel):
     players: List[PlayerScore]
 
 class WarSummary(BaseModel):
-    our_alliance: str
-    opponent_alliance: str
-    result: Literal["Zwycięstwo", "Porażka"]
-    our_score: int = Field(ge=0)
-    opponent_score: int = Field(ge=0)
+    # Optional to support manual completion when only 1 screenshot is provided.
+    our_alliance: Optional[str] = None
+    opponent_alliance: Optional[str] = None
+    result: Optional[Literal["Zwycięstwo", "Porażka"]] = None
+    our_score: Optional[int] = None
+    opponent_score: Optional[int] = None
     war_mode: Optional[str] = None
     beta_badge: Optional[bool] = None
 
