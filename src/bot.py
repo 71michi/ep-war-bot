@@ -1515,6 +1515,127 @@ def _set_current_status_block(text: str, status_line: str) -> str:
     return base + "\n\n**Aktualny status:** " + status_line
 
 
+def _strip_status_block(text: str) -> str:
+    """Remove the trailing '**Aktualny status:** ...' block (if present)."""
+    base = (text or "").rstrip()
+    base = re.sub(r"\n\n\*\*Aktualny status:\*\*.*\Z", "", base, flags=re.DOTALL)
+    return base.rstrip()
+
+
+def _extract_header_block(text: str) -> str:
+    """Return the header part of a LISTWAR message (everything before the player list)."""
+    t = _strip_status_block(text)
+    parts = t.split("\n\n", 1)
+    return (parts[0] if parts else "").strip()
+
+
+def _extract_player_lines_block(text: str) -> str:
+    """Extract only the player list lines from a LISTWAR message."""
+    t = _strip_status_block(text)
+    parts = t.split("\n\n", 1)
+    if len(parts) < 2:
+        return ""
+    rest = parts[1]
+    out_lines: List[str] = []
+    for raw in rest.splitlines():
+        line = raw.rstrip()
+        if "⚠️ **Wymagane poprawki**" in line:
+            break
+        if line.strip().startswith("✅ Gdy lista jest poprawna") or line.strip().startswith("**Aktualny status:**"):
+            break
+        if re.match(r"^\[\d{2}\]\s", line.strip()):
+            out_lines.append(line)
+    return "\n".join(out_lines).strip()
+
+
+def _extract_info_block(text: str) -> str:
+    """Extract the 'Wymagane poprawki' + instructions block (or ADDWAR hint if no warnings)."""
+    t = _strip_status_block(text)
+    idx = t.find("⚠️ **Wymagane poprawki**")
+    if idx != -1:
+        return t[idx:].strip()
+    idx2 = t.find("✅ Gdy lista jest poprawna")
+    if idx2 != -1:
+        return t[idx2:].strip()
+    return ""
+
+
+def _players_txt_from_post(post: 'WarPost') -> str:
+    lines: List[str] = []
+    for r in sorted(post.lines_by_rank.keys()):
+        ln = post.lines_by_rank[r]
+        name_disp = ln.name_display
+        if name_disp == "UNKNOWN":
+            raw = (ln.unknown_raw or ln.name_raw or "").strip().replace("`", "'")
+            if raw:
+                name_disp = f'UNKNOWN (nierozpoznany: "{raw}")'
+        if getattr(ln, 'out_of_roster_raw', None):
+            name_disp = f"{name_disp} (poza rosterem)"
+        lines.append(f"[{ln.rank:02d}] {name_disp} — {ln.points}")
+    return "\n".join(lines).strip()
+
+
+async def _post_details_to_storage(
+    client: discord.Client,
+    guild: Optional[discord.Guild],
+    *,
+    war_id: str,
+    header: str,
+    players_txt: str,
+    info_block: str,
+    previous_details_msg_id: Optional[int] = None,
+) -> Optional[discord.Message]:
+    """Post war details into #warbot-storage (player list as attachment for Expand)."""
+    ch = await _ensure_storage_channel(client)
+    if ch is None and guild is not None:
+        try:
+            ch = discord.utils.get(getattr(guild, 'text_channels', []), name="warbot-storage")
+        except Exception:
+            ch = None
+    if ch is None:
+        return None
+
+    # Best-effort delete previous details message (keep storage tidy).
+    if previous_details_msg_id:
+        try:
+            old = await ch.fetch_message(int(previous_details_msg_id))
+            try:
+                await old.delete()
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+    content = (header or "").strip()
+    content += "\n\n📎 Lista graczy: w załączniku (kliknij attachment → Expand)."
+    if info_block:
+        content += "\n\n" + info_block.strip()
+
+    file_obj: Optional[discord.File] = None
+    try:
+        if players_txt:
+            payload = players_txt.encode("utf-8")
+            file_obj = discord.File(io.BytesIO(payload), filename=f"players_{war_id}.txt")
+    except Exception:
+        file_obj = None
+
+    try:
+        if file_obj is not None:
+            return await ch.send(content=content, file=file_obj)
+        return await ch.send(content=content + "\n\n(Brak pliku z listą graczy — błąd tworzenia załącznika)")
+    except Exception:
+        logger.exception("Failed to post war details to storage channel")
+        return None
+
+
+def _build_public_confirmed_message(header: str, storage_jump_url: Optional[str], status_line: str) -> str:
+    base = (header or "").strip()
+    if storage_jump_url:
+        base += f"\n\n📦 Szczegóły (lista graczy + instrukcje) → {storage_jump_url}"
+    else:
+        base += "\n\n📦 Szczegóły (lista graczy + instrukcje) → #warbot-storage"
+    return _set_current_status_block(base, status_line)
+
 async def _try_update_listwar_status_message(
     discord_client: discord.Client,
     war_id: str,
@@ -2646,15 +2767,63 @@ async def try_apply_addwar_command(
             await ref_msg.add_reaction("🟢")
         except Exception:
             pass
-        # Avoid spamming the channel on repeated edits/toggles: update the LISTWAR message with current status.
-        updated = await _try_update_listwar_status_message(
-            discord_client,
-            war_id=war_id,
-            status_line="✅ Dodano do strony",
-            ref_msg=ref_msg,
-        )
-        if not updated:
-            await message.channel.send(f"✅ Dodano do strony: `{war_id}`")
+        # After confirmation, keep #wyniki-wojenne readable:
+        # - przenieś 'Wymagane poprawki' + instrukcje do #warbot-storage
+        # - zwin listę graczy jako załącznik (Expand)
+        try:
+            rendered_src = render_post(post) if post is not None else (ref_msg.content or "")
+            header = _extract_header_block(rendered_src)
+
+            players_txt = _players_txt_from_post(post) if post is not None else _extract_player_lines_block(rendered_src)
+            info_block = _extract_info_block(rendered_src)
+
+            prev_details_id: Optional[int] = None
+            try:
+                prev_details_id = int((existing or {}).get("details_message_id") or 0) or None
+            except Exception:
+                prev_details_id = None
+
+            storage_msg = await _post_details_to_storage(
+                discord_client,
+                getattr(message, "guild", None),
+                war_id=war_id,
+                header=header,
+                players_txt=players_txt,
+                info_block=info_block,
+                previous_details_msg_id=prev_details_id,
+            )
+
+            # Persist storage pointers (optional, but helps link from public message)
+            if storage_msg is not None:
+                try:
+                    rec["details_message_id"] = int(storage_msg.id)
+                    rec["details_jump_url"] = str(storage_msg.jump_url)
+                    rec["details_channel_id"] = int(storage_msg.channel.id)
+                    async with WAR_STORE_LOCK:
+                        await asyncio.to_thread(WAR_STORE.upsert_war, war_id, rec)
+                    try:
+                        await _persist_progress_to_discord(discord_client, what="wars")
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+
+            public_content = _build_public_confirmed_message(
+                header=header,
+                storage_jump_url=(str(storage_msg.jump_url) if storage_msg is not None else (rec.get("details_jump_url") if isinstance(rec, dict) else None)),
+                status_line="✅ Dodano do strony",
+            )
+            await ref_msg.edit(content=public_content)
+        except Exception:
+            # Fallback: only update status line
+            updated = await _try_update_listwar_status_message(
+                discord_client,
+                war_id=war_id,
+                status_line="✅ Dodano do strony",
+                ref_msg=ref_msg,
+            )
+            if not updated:
+                await message.channel.send(f"✅ Dodano do strony: `{war_id}`")
     except Exception:
         logger.exception("ADDWAR: failed to persist confirm war_id=%s", war_id)
         await message.channel.send("❌ Nie udało się dodać wojny do strony (błąd zapisu).")
@@ -2713,16 +2882,104 @@ async def try_apply_manual_corrections(
                     setattr(post.summary, k, v)
                 except Exception:
                     pass
-            # Re-render and edit
-            new_content = render_post(post)
-            parts = chunk_message(new_content)
-            if len(parts) != 1:
-                new_content = parts[0]
-            await ref_msg.edit(content=new_content)
+            # Re-render and edit (DRAFT) or archive to storage (CONFIRMED)
             try:
-                await ref_msg.add_reaction("📝")
+                async with WAR_STORE_LOCK:
+                    existing = await asyncio.to_thread(WAR_STORE.get_war, post.war_id)
             except Exception:
-                pass
+                existing = None
+            existing_status = str((existing or {}).get("status") or "draft").lower()
+
+            rendered_src = render_post(post)
+            header = _extract_header_block(rendered_src)
+
+            if existing_status == "confirmed":
+                # Keep public channel readable: archive details to storage + keep only a short message here.
+                prev_details_id: Optional[int] = None
+                try:
+                    prev_details_id = int((existing or {}).get("details_message_id") or 0) or None
+                except Exception:
+                    prev_details_id = None
+
+                storage_msg = await _post_details_to_storage(
+                    discord_client,
+                    getattr(message, "guild", None),
+                    war_id=post.war_id,
+                    header=header,
+                    players_txt=_players_txt_from_post(post),
+                    info_block=_extract_info_block(rendered_src),
+                    previous_details_msg_id=prev_details_id,
+                )
+
+                # Persist updated war record (keep CONFIRMED metadata)
+                try:
+                    rec = _post_to_store_record(
+                        post,
+                        ref_msg=None,
+                        bot_msg=ref_msg,
+                        store_status=existing_status,
+                        confirmed_at_ts=(existing or {}).get("confirmed_at_ts"),
+                        confirmed_by_user_id=(existing or {}).get("confirmed_by_user_id"),
+                        confirmed_by_user_tag=(existing or {}).get("confirmed_by_user_tag"),
+                    )
+                    if isinstance(existing, dict):
+                        for k in ("ref_message_id","ref_jump_url","created_at_ts","created_at_iso","guild_id","channel_id"):
+                            if rec.get(k) is None and existing.get(k) is not None:
+                                rec[k] = existing[k]
+                    if storage_msg is not None:
+                        rec["details_message_id"] = int(storage_msg.id)
+                        rec["details_jump_url"] = str(storage_msg.jump_url)
+                        rec["details_channel_id"] = int(storage_msg.channel.id)
+                    async with WAR_STORE_LOCK:
+                        await asyncio.to_thread(WAR_STORE.upsert_war, post.war_id, rec)
+                    try:
+                        await _persist_progress_to_discord(discord_client, what="wars")
+                    except Exception:
+                        pass
+                except Exception:
+                    logger.exception("Summary update: failed to persist store update war_id=%s", post.war_id)
+
+                public_content = _build_public_confirmed_message(
+                    header=header,
+                    storage_jump_url=(str(storage_msg.jump_url) if storage_msg is not None else ((existing or {}).get("details_jump_url") if isinstance(existing, dict) else None)),
+                    status_line="✅ Dodano do strony",
+                )
+                await ref_msg.edit(content=public_content)
+            else:
+                new_content = rendered_src
+                parts = chunk_message(new_content)
+                if len(parts) != 1:
+                    new_content = parts[0]
+                await ref_msg.edit(content=new_content)
+
+                # Persist updated DRAFT
+                try:
+                    rec = _post_to_store_record(
+                        post,
+                        ref_msg=None,
+                        bot_msg=ref_msg,
+                        store_status=existing_status,
+                        confirmed_at_ts=(existing or {}).get("confirmed_at_ts") if isinstance(existing, dict) else None,
+                        confirmed_by_user_id=(existing or {}).get("confirmed_by_user_id") if isinstance(existing, dict) else None,
+                        confirmed_by_user_tag=(existing or {}).get("confirmed_by_user_tag") if isinstance(existing, dict) else None,
+                    )
+                    if isinstance(existing, dict):
+                        for k in ("ref_message_id","ref_jump_url","created_at_ts","created_at_iso","guild_id","channel_id"):
+                            if rec.get(k) is None and existing.get(k) is not None:
+                                rec[k] = existing[k]
+                    async with WAR_STORE_LOCK:
+                        await asyncio.to_thread(WAR_STORE.upsert_war, post.war_id, rec)
+                    try:
+                        await _persist_progress_to_discord(discord_client, what="wars")
+                    except Exception:
+                        pass
+                except Exception:
+                    logger.exception("Summary update: failed to persist store update war_id=%s", post.war_id)
+
+                try:
+                    await ref_msg.add_reaction("📝")
+                except Exception:
+                    pass
         except Exception:
             logger.exception("Summary update: failed to edit war post %s", ref_msg.id)
 
@@ -2795,19 +3052,58 @@ async def try_apply_manual_corrections(
         if rank > post.expected_max_rank:
             post.expected_max_rank = rank
 
-    # Re-render and edit
-    new_content = render_post(post)
-    # If it's too long (unlikely), truncate warnings last.
-    parts = chunk_message(new_content)
-    if len(parts) != 1:
-        # Keep only the first chunk to avoid multi-message edit complexity.
-        new_content = parts[0]
-
+    # Re-render and persist (DRAFT) or archive to storage (CONFIRMED)
     try:
-        await ref_msg.edit(content=new_content)
+        async with WAR_STORE_LOCK:
+            existing = await asyncio.to_thread(WAR_STORE.get_war, post.war_id)
     except Exception:
-        logger.exception("Manual correction: failed to edit message %s", ref_msg.id)
-        return False
+        existing = None
+
+    existing_status = str((existing or {}).get("status") or "draft").lower()
+    rendered_src = render_post(post)
+    header = _extract_header_block(rendered_src)
+
+    storage_msg: Optional[discord.Message] = None
+    if existing_status == "confirmed":
+        # Keep public channel readable: archive details to storage + keep only a short message here.
+        prev_details_id: Optional[int] = None
+        try:
+            prev_details_id = int((existing or {}).get("details_message_id") or 0) or None
+        except Exception:
+            prev_details_id = None
+
+        storage_msg = await _post_details_to_storage(
+            discord_client,
+            getattr(message, "guild", None),
+            war_id=post.war_id,
+            header=header,
+            players_txt=_players_txt_from_post(post),
+            info_block=_extract_info_block(rendered_src),
+            previous_details_msg_id=prev_details_id,
+        )
+
+        public_content = _build_public_confirmed_message(
+            header=header,
+            storage_jump_url=(str(storage_msg.jump_url) if storage_msg is not None else ((existing or {}).get("details_jump_url") if isinstance(existing, dict) else None)),
+            status_line="✅ Dodano do strony",
+        )
+        try:
+            await ref_msg.edit(content=public_content)
+        except Exception:
+            logger.exception("Manual correction: failed to edit condensed message %s", ref_msg.id)
+            return False
+    else:
+        # Standard DRAFT rendering
+        new_content = rendered_src
+        parts = chunk_message(new_content)
+        if len(parts) != 1:
+            # Keep only the first chunk to avoid multi-message edit complexity.
+            new_content = parts[0]
+        try:
+            await ref_msg.edit(content=new_content)
+        except Exception:
+            logger.exception("Manual correction: failed to edit message %s", ref_msg.id)
+            return False
 
     # Signal success
     try:
@@ -2817,10 +3113,6 @@ async def try_apply_manual_corrections(
 
     # Persist updated war to the store (keeps draft/confirmed status)
     try:
-        async with WAR_STORE_LOCK:
-            existing = await asyncio.to_thread(WAR_STORE.get_war, post.war_id)
-
-        existing_status = str((existing or {}).get("status") or "draft").lower()
         rec = _post_to_store_record(
             post,
             ref_msg=None,
@@ -2839,9 +3131,17 @@ async def try_apply_manual_corrections(
                 "created_at_iso",
                 "guild_id",
                 "channel_id",
+                "details_message_id",
+                "details_jump_url",
+                "details_channel_id",
             ):
                 if rec.get(k) is None and existing.get(k) is not None:
                     rec[k] = existing[k]
+
+        if storage_msg is not None:
+            rec["details_message_id"] = int(storage_msg.id)
+            rec["details_jump_url"] = str(storage_msg.jump_url)
+            rec["details_channel_id"] = int(storage_msg.channel.id)
 
         async with WAR_STORE_LOCK:
             await asyncio.to_thread(WAR_STORE.upsert_war, post.war_id, rec)
