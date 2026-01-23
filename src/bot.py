@@ -2198,7 +2198,7 @@ async def try_apply_help_channel_command(
         "• `23 Nick 250` — *(reply)* na wiadomość bota z listą: popraw nick i punkty na pozycji 23.\n"
         "• `23 Nick` — *(reply)* popraw tylko nick (punkty zostają).\n• `TRYB <tryb>` — *(reply)* uzupełnia/zmienia tryb wojenny (np. `TRYB Lepszy atak`).\n• `WYNIK <nasz> <wrog>` — *(reply)* ustawia wynik punktowy (np. `WYNIK 5800 5750`).\n• `SOJUSZE <nasz> vs <wrog>` — *(reply)* ustawia nazwy sojuszy.\n• `REZULTAT Zwycięstwo/Porażka` — *(reply)* ustawia rezultat.\n• `SUMMARY <nasz> | <wrog> | <rezultat> | <nasz_score> | <wrog_score> | <tryb>` — *(reply)* uzupełnia wszystko naraz.\n"
         "• `ADDWAR` — *(reply)* na poprawną listę bota: **zatwierdza** i dodaje wojnę do strony (CONFIRMED).\n"
-        "• `UNLISTWAR <ID>` — usuwa wojnę w statusie DRAFT (żeby zrobić LISTWAR ponownie i dostać nowe ID).\n"
+        "• `UNLISTWAR` — *(reply)* na listę bota: usuwa DRAFT + kasuje wiadomość; albo `UNLISTWAR <ID>` jako komenda na kanale.\n"
         "• `REMOVEWAR <ID>` — usuwa wojnę ze strony (ID z nagłówka listy).\n"
         "\n"
         "**Roster**\n"
@@ -2372,6 +2372,134 @@ async def try_apply_unlistwar_channel_command(
         pass
     return True
 
+
+
+async def try_apply_unlistwar_reply_command(
+    discord_client: discord.Client,
+    message: discord.Message,
+) -> bool:
+    """Handle reply command: UNLISTWAR [<WAR-ID>].
+
+    Reply to the bot's LISTWAR message to:
+      - delete that bot message (cleanup)
+      - remove the war from store if its status is DRAFT (so next LISTWAR gets a new ID)
+    """
+    if not message.reference or not message.reference.message_id:
+        return False
+
+    text = (message.content or "").strip()
+    m = re.match(r"^UNLISTWAR(?:\s+(.+))?$", text, flags=re.IGNORECASE)
+    if not m:
+        return False
+
+    # Fetch referenced message (bot's war list)
+    ref_msg: Optional[discord.Message] = None
+    if isinstance(message.reference.resolved, discord.Message):
+        ref_msg = message.reference.resolved
+    else:
+        try:
+            ref_msg = await message.channel.fetch_message(message.reference.message_id)
+        except Exception:
+            ref_msg = None
+
+    if not ref_msg:
+        await message.channel.send("Nie mogę znaleźć wiadomości, do której odpowiadasz (UNLISTWAR).")
+        try:
+            await message.delete()
+        except Exception:
+            pass
+        return True
+
+    if not discord_client.user or ref_msg.author.id != discord_client.user.id:
+        await message.channel.send("`UNLISTWAR` musi być reply na wiadomość bota wygenerowaną przez `LISTWAR`.")
+        try:
+            await message.delete()
+        except Exception:
+            pass
+        return True
+
+    war_id = (m.group(1) or "").replace("`", "").strip()
+    if not war_id:
+        post = WAR_POSTS.get(ref_msg.id)
+        war_id = post.war_id if post else _extract_war_id_from_text(ref_msg.content or "")
+
+    if not war_id:
+        # We can still delete the bot message, but can't touch the store.
+        try:
+            await ref_msg.delete()
+        except Exception:
+            pass
+        try:
+            await message.delete()
+        except Exception:
+            pass
+        return True
+
+    rec: Optional[Dict[str, object]] = None
+    try:
+        async with WAR_STORE_LOCK:
+            rec = await asyncio.to_thread(WAR_STORE.get_war, war_id)
+    except Exception:
+        rec = None
+
+    status = str((rec or {}).get("status") or "").lower()
+    if status and status != "draft":
+        if status == "confirmed":
+            await message.channel.send(
+                f"ℹ️ `{war_id}` jest już zatwierdzona (CONFIRMED). Użyj `REMOVEWAR {war_id}` jeśli chcesz ją usunąć ze strony."
+            )
+        else:
+            await message.channel.send(
+                f"ℹ️ `UNLISTWAR` działa tylko dla wojen w statusie DRAFT. Status `{war_id}`: `{status}`"
+            )
+        try:
+            await message.delete()
+        except Exception:
+            pass
+        return True
+
+    # Best-effort delete the LISTWAR bot message (the one we replied to).
+    try:
+        await ref_msg.delete()
+    except Exception:
+        pass
+
+    # Clear parse cache for this source screenshot message (so next LISTWAR re-parses if desired).
+    try:
+        ref_mid = int((rec or {}).get("ref_message_id") or 0)
+        if ref_mid:
+            WAR_PARSE_CACHE.pop(ref_mid, None)
+    except Exception:
+        pass
+
+    # Remove draft from store (if present).
+    existed = False
+    try:
+        async with WAR_STORE_LOCK:
+            existed = await asyncio.to_thread(WAR_STORE.delete_war, war_id)
+    except Exception:
+        existed = False
+
+    if existed:
+        try:
+            await _persist_progress_to_discord(discord_client, what="wars")
+        except Exception:
+            pass
+        await message.channel.send(f"🧹 Unlisted DRAFT: `{war_id}` (możesz zrobić LISTWAR ponownie, dostaniesz nowe ID)")
+    else:
+        await message.channel.send(f"🧹 Usunięto wiadomość LISTWAR dla `{war_id}` (brak wpisu w store).")
+
+    # Cleanup memory map
+    try:
+        WAR_POSTS.pop(ref_msg.id, None)
+    except Exception:
+        pass
+
+    try:
+        await message.delete()
+    except Exception:
+        pass
+    return True
 
 async def try_apply_addwar_command(
     discord_client: discord.Client,
@@ -2775,7 +2903,7 @@ def main():
             tok0 = text.split()[0]
             tok0_clean = tok0.strip("[](){}")
             tok0_up = tok0_clean.upper()
-            if not (tok0_up in {"LISTWAR", "ADDWAR", "ADDROSTER", "REMOVEROSTER", "TRYB", "MODE", "WAR_MODE", "WYNIK", "SCORE", "SOJUSZE", "ALLIANCES", "REZULTAT", "RESULT", "SUMMARY", "PODSUMOWANIE", "DATA", "DATE"} or tok0_clean.isdigit()):
+            if not (tok0_up in {"LISTWAR", "ADDWAR", "ADDROSTER", "REMOVEROSTER", "TRYB", "MODE", "WAR_MODE", "WYNIK", "SCORE", "SOJUSZE", "ALLIANCES", "REZULTAT", "RESULT", "SUMMARY", "PODSUMOWANIE", "DATA", "DATE", "UNLISTWAR"} or tok0_clean.isdigit()):
                 return
         else:
             if not text:
@@ -2883,6 +3011,16 @@ def main():
             # ----------------------------
             # 2) Reply commands
             # ----------------------------
+            # UNLISTWAR (reply): usuwa DRAFT i kasuje wiadomość bota z LISTWAR.
+            try:
+                handled = await try_apply_unlistwar_reply_command(client, message)
+                if handled:
+                    logger.info("UNLISTWAR(reply) handled -> done")
+                    return
+            except Exception:
+                logger.exception("Błąd podczas UNLISTWAR(reply)")
+                had_exception = True
+
             # LISTWAR: reply to a message containing the two screenshots.
             if re.match(r"^\s*LISTWAR\b", text_raw, flags=re.IGNORECASE):
                 # Fetch referenced message (the one with screenshots)
@@ -3051,7 +3189,35 @@ def main():
                         logger.warning("Output message exceeded Discord limit; truncated to 1 chunk")
 
                     # Reply to the original screenshot message for context.
-                    bot_post_msg = await ref_msg.reply(out, mention_author=False)
+                    bot_post_msg: Optional[discord.Message] = None
+                    # If this is a re-run for the same WAR-ID, try updating the existing DRAFT message instead of posting a duplicate.
+                    try:
+                        async with WAR_STORE_LOCK:
+                            _existing = await asyncio.to_thread(WAR_STORE.get_war, post.war_id)
+                        _st = str((_existing or {}).get("status") or "").lower()
+                        if _st == "draft":
+                            _bm_id = int((_existing or {}).get("bot_message_id") or 0)
+                            _ch_id = int((_existing or {}).get("channel_id") or 0)
+                            if _bm_id and _ch_id:
+                                _ch = client.get_channel(_ch_id)
+                                if _ch is None:
+                                    try:
+                                        _ch = await client.fetch_channel(_ch_id)
+                                    except Exception:
+                                        _ch = None
+                                if isinstance(_ch, (discord.TextChannel, discord.Thread)):
+                                    try:
+                                        _bm = await _ch.fetch_message(_bm_id)
+                                        await _bm.edit(content=out)
+                                        bot_post_msg = _bm
+                                        logger.info("LISTWAR updated existing DRAFT bot message msg_id=%s", _bm_id)
+                                    except Exception:
+                                        bot_post_msg = None
+                    except Exception:
+                        bot_post_msg = None
+                    
+                    if bot_post_msg is None:
+                        bot_post_msg = await ref_msg.reply(out, mention_author=False)
                     WAR_POSTS[bot_post_msg.id] = post
                     logger.info("LISTWAR sent war post msg_id=%s stored in WAR_POSTS", bot_post_msg.id)
 

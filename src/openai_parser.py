@@ -336,6 +336,32 @@ def _merge_players(lists: List[List[PlayerScore]]) -> List[PlayerScore]:
     return merged
 
 
+def _filter_players_by_rank_range(players: Optional[List[PlayerScore]], mx: Optional[int]) -> Optional[List[PlayerScore]]:
+    """Drop hallucinated ranks outside 1..mx.
+
+    In robust slicing, models occasionally misread a bracketed rank (e.g. [15] -> [110]).
+    We treat ranks outside the visible max as invalid to avoid generating extra UNKNOWN rows.
+    """
+    if not players or not mx or mx <= 0:
+        return players
+    out: List[PlayerScore] = []
+    removed: List[int] = []
+    for p in players:
+        try:
+            r = int(p.rank)
+        except Exception:
+            continue
+        if 1 <= r <= int(mx):
+            out.append(p)
+        else:
+            removed.append(r)
+    if removed:
+        removed_u = sorted(set(removed))
+        logger.info("Post-filter: removed ranks outside 1..%d: %s", int(mx), removed_u)
+    out.sort(key=lambda x: x.rank)
+    return out
+
+
 def _chat_needs_repair(players: Optional[List[PlayerScore]], expected_max_rank: Optional[int] = None) -> bool:
     """Decide whether we should re-run OCR in robust mode."""
     if not players:
@@ -940,6 +966,10 @@ def parse_war_from_images(
 
     logger.debug("After expected_max_rank inference: %s", expected_max_rank)
 
+    # Guard against hallucinated ranks (e.g. [15] -> [110]) before running repair logic.
+    if players and expected_max_rank:
+        players = _filter_players_by_rank_range(players, expected_max_rank)
+
     # Jeśli chat wyszedł podejrzany (braki/duplikaty/śmieciowe nicki), spróbuj naprawy.
     if chat_image_bytes and _chat_needs_repair(players, expected_max_rank):
         details = _chat_repair_details(players, expected_max_rank)
@@ -995,6 +1025,10 @@ def parse_war_from_images(
                     players = _merge_players([players or [], cand2])
                     logger.info("Robust(fallback) merged -> %d players", len(players or []))
 
+
+    # After repair/robust passes, enforce the rank range again to drop any accidental extra rows.
+    if players and expected_max_rank:
+        players = _filter_players_by_rank_range(players, expected_max_rank)
 
     # Jeśli w ogóle nie wykryliśmy chatu (zła klasyfikacja), spróbuj robust na wszystkich obrazkach
     # i wybierz ten z największą liczbą pozycji.
