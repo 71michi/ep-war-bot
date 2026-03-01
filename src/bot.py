@@ -53,7 +53,7 @@ async def _send_temp(channel: discord.abc.Messageable, content: str, *, delete_a
 # Override via environment variables on Render:
 #   EPWAR_VERSION: e.g. v3.4.24
 #   EPWAR_BUILD:   e.g. build: 2026-03-01 22:05:00 CET
-APP_VERSION = env_str("EPWAR_VERSION", "v3.4.28")
+APP_VERSION = env_str("EPWAR_VERSION", "v3.4.31")
 _STARTED_AT = datetime.now().astimezone()
 BUILD_INFO = env_str(
     "EPWAR_BUILD",
@@ -4398,7 +4398,39 @@ def main():
             reset_trace_id(token)
 
 
-    client.run(DISCORD_TOKEN)
+    async def _run_discord_with_backoff():
+        """Run the Discord client with exponential backoff on Cloudflare/HTTP 429.
+
+        Render (and other PaaS) may restart the process aggressively on failure.
+        When Discord Cloudflare returns Error 1015 (HTTP 429), immediate exit causes a crash-loop
+        that prolongs the ban. We sleep and retry instead.
+        """
+        backoff = 30  # seconds
+        max_backoff = 10 * 60
+        while True:
+            try:
+                # client.start() only returns when the client is closed.
+                await client.start(DISCORD_TOKEN, reconnect=True)
+                return
+            except discord.HTTPException as e:
+                status = getattr(e, 'status', None)
+                body = str(e)
+                is_rate_limited = (status == 429) or ('Error 1015' in body) or ('rate limited' in body.lower())
+                if is_rate_limited:
+                    logger.warning(
+                        'Discord login is rate-limited (HTTP 429 / CF 1015). Sleeping %ss before retry...',
+                        backoff,
+                    )
+                    await asyncio.sleep(backoff)
+                    backoff = min(backoff * 2, max_backoff)
+                    continue
+                raise
+            except Exception:
+                # Avoid tight loops on unexpected failures.
+                logger.exception('Discord client crashed; retrying in 30s...')
+                await asyncio.sleep(30)
+
+    asyncio.run(_run_discord_with_backoff())
 
 
 if __name__ == "__main__":
