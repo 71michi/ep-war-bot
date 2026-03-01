@@ -148,8 +148,38 @@ async def upload_snapshot(
         logger.warning("Snapshot missing on disk: %s", local_path)
         return None
 
-    # Delete previous snapshot (if any)
+    # Safety: avoid accidentally overwriting a good WARSTORE snapshot with an empty/partial file.
+    # This can happen on free hosting tiers if the local filesystem resets and a command triggers
+    # persistence before restore completes.
     prev = await _find_pinned_with_prefix(channel, prefix)
+    if prefix == TAG_WARS and prev is not None:
+        try:
+            att = prev.attachments[0]
+            prev_bytes = await att.read()
+            if (att.filename or "").endswith(".gz"):
+                try:
+                    prev_bytes = gzip.decompress(prev_bytes)
+                except Exception:
+                    # If we cannot decompress, fall back to size check only.
+                    pass
+
+            # If the new local file is suspiciously small compared to the pinned snapshot,
+            # do NOT overwrite it.
+            # We use a conservative threshold (25%) to tolerate small growth/shrink.
+            new_bytes = _read_file_bytes(local_path)
+            if len(new_bytes) < max(5_000, int(0.25 * len(prev_bytes))):
+                logger.warning(
+                    "Refusing to overwrite %s: local snapshot too small (local=%d, pinned=%d)",
+                    prefix,
+                    len(new_bytes),
+                    len(prev_bytes),
+                )
+                return prev.id
+        except Exception:
+            # On any error, keep old behavior (attempt overwrite)
+            pass
+
+    # Delete previous snapshot (if any) AFTER safety check.
     if prev is not None:
         try:
             await prev.unpin()

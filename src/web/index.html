@@ -922,6 +922,35 @@
   function renderRosterAverages() {
     const wars = Array.isArray(window.__ALL_WARS__) ? window.__ALL_WARS__ : [];
     const roster = Array.isArray(window.__ROSTER__) ? window.__ROSTER__ : [];
+
+    // Preserve UI state across re-renders (e.g., toggling "Punkty przeliczone"):
+    // - keep "Pokaż więcej" expanded state
+    // - keep which player details are currently expanded
+    // Keep an in-memory set of expanded player rows, so we can restore it even if
+    // the DOM text changes a bit (badges/icons/whitespace).
+    const prevOpenNames = new Set(Array.isArray(window.__AVG_OPEN_NAMES__) ? window.__AVG_OPEN_NAMES__ : []);
+    try {
+      const tbodyPrev = document.querySelector('#rosterTable tbody');
+      if (tbodyPrev) {
+        // Determine whether the user expanded "Pokaż więcej" previously.
+        let showMore = false;
+        const moreMain = tbodyPrev.querySelectorAll('tr.more-row:not(.details-row)');
+        for (const tr of moreMain) {
+          if (tr.style.display !== 'none') { showMore = true; break; }
+        }
+        window.__AVG_SHOW_MORE__ = showMore;
+
+        // Collect expanded player names.
+        const detailRows = tbodyPrev.querySelectorAll('tr.details-row');
+        for (const dtr of detailRows) {
+          if (dtr.dataset && dtr.dataset.open === '1') {
+            const name = (dtr.dataset && dtr.dataset.player) ? String(dtr.dataset.player) : '';
+            if (name) prevOpenNames.add(name);
+          }
+        }
+      }
+    } catch (_) {}
+    window.__AVG_OPEN_NAMES__ = Array.from(prevOpenNames);
     const sel = document.getElementById('avgX');
     const n = wars.length;
     const prevVal = sel.value;
@@ -935,7 +964,7 @@
     }
     sel.value = prevVal ? String(Math.min(Number(prevVal), max)) : String(Math.min(10, max));
 
-    let expanded = false;
+    let expanded = !!window.__AVG_SHOW_MORE__;
 
     // Format points: show integers without decimals, otherwise 1 decimal.
     const fmtPts = (n) => {
@@ -1059,6 +1088,10 @@
         detailsTr.className = 'details-row';
         detailsTr.style.display = 'none';
 
+        // Stable key for restoring expanded state across renders.
+        tr.dataset.player = r.name;
+        detailsTr.dataset.player = r.name;
+
         const isMore = idx >= 5;
         if (isMore) {
           tr.classList.add('more-row');
@@ -1144,6 +1177,13 @@
           detailsTr.dataset.open = open ? '1' : '0';
           detailsTr.style.display = open ? '' : 'none';
           tr.setAttribute('aria-expanded', open ? 'true' : 'false');
+
+          // Persist expanded state for future re-renders.
+          try {
+            const s = new Set(Array.isArray(window.__AVG_OPEN_NAMES__) ? window.__AVG_OPEN_NAMES__ : []);
+            if (open) s.add(r.name); else s.delete(r.name);
+            window.__AVG_OPEN_NAMES__ = Array.from(s);
+          } catch (_) {}
         };
 
         const toggle = () => {
@@ -1183,8 +1223,10 @@
         // Nick
         tr.children[2].appendChild(nameSpan);
 
-        // Ensure collapsed by default
-        setOpen(false);
+        // Restore expanded state for this player (if it was open before re-render).
+        const openNamesArr = Array.isArray(window.__AVG_OPEN_NAMES__) ? window.__AVG_OPEN_NAMES__ : [];
+        const shouldOpen = openNamesArr.includes(r.name);
+        setOpen(shouldOpen);
 
         tbody.appendChild(tr);
         tbody.appendChild(detailsTr);

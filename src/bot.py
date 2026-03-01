@@ -29,13 +29,31 @@ from rapidfuzz import fuzz, process
 setup_logging()
 logger = logging.getLogger("warbot")
 
+# Auto-delete short-lived bot confirmations to reduce channel clutter.
+# Keep these messages very short-lived; deletion is best-effort.
+AUTO_DELETE_BOT_RESPONSES_SEC = env_int("AUTO_DELETE_BOT_RESPONSES_SEC", 15)
+
+
+async def _send_temp(channel: discord.abc.Messageable, content: str, *, delete_after: Optional[int] = None, **kwargs) -> discord.Message:
+    """Send a short-lived message.
+
+    We prefer Discord.py's built-in `delete_after` scheduling because it's
+    rate-limit aware and more reliable than rolling our own timers.
+    """
+    if delete_after is None:
+        delete_after = int(AUTO_DELETE_BOT_RESPONSES_SEC)
+    # Make sure we never keep channel-clutter messages around for too long.
+    delete_after = max(1, int(delete_after))
+    return await channel.send(content, delete_after=delete_after, **kwargs)
+
+
 # ----------------------------
 # App metadata (used by Web UI footer)
 # ----------------------------
 # Override via environment variables on Render:
 #   EPWAR_VERSION: e.g. v3.4.24
 #   EPWAR_BUILD:   e.g. build: 2026-03-01 22:05:00 CET
-APP_VERSION = env_str("EPWAR_VERSION", "v3.4.24")
+APP_VERSION = env_str("EPWAR_VERSION", "v3.4.28")
 _STARTED_AT = datetime.now().astimezone()
 BUILD_INFO = env_str(
     "EPWAR_BUILD",
@@ -2346,11 +2364,7 @@ async def try_apply_removeroster_command(
             await _persist_progress_to_discord(discord_client, what="roster")
         except Exception:
             pass
-    if removed:
-        try:
-            await _persist_progress_to_discord(discord_client, what="roster")
-        except Exception:
-            pass
+
     if not removed:
         # Nothing changed -> treat as handled to avoid noise.
         try:
@@ -2843,7 +2857,15 @@ async def try_apply_addroster_channel_command(
         resp = "ℹ️ Nic nie zmieniono (nicki już były w rosterze)."
 
     try:
-        await message.channel.send(resp)
+        _m = await message.channel.send(resp)
+        try:
+            asyncio.create_task(delete_message_later(_m, AUTO_DELETE_BOT_RESPONSES_SEC))
+        except Exception:
+            pass
+        try:
+            asyncio.create_task(delete_message_later(_m, AUTO_DELETE_BOT_RESPONSES_SEC))
+        except Exception:
+            pass
     except Exception:
         logger.exception("ADDROSTER(channel): failed to send confirmation")
 
@@ -2882,7 +2904,7 @@ async def try_apply_removeroster_channel_command(
         resp = "ℹ️ Nic nie zmieniono (nicki już były usunięte lub nie znaleziono)."
 
     try:
-        await message.channel.send(resp)
+        await _send_temp(message.channel, resp, delete_after=AUTO_DELETE_BOT_RESPONSES_SEC)
     except Exception:
         logger.exception("REMOVEROSTER(channel): failed to send confirmation")
 
@@ -2920,7 +2942,7 @@ async def try_apply_currentroster_channel_command(
 
     try:
         for part in chunk_message(out):
-            await message.channel.send(part)
+            await _send_temp(message.channel, part, delete_after=AUTO_DELETE_BOT_RESPONSES_SEC)
     except Exception:
         logger.exception("CURRENTROSTER: failed to send")
 
@@ -2960,7 +2982,8 @@ async def try_apply_help_channel_command(
     if not re.match(r"^HELP\b", text, flags=re.IGNORECASE):
         return False
 
-    auto_del = max(5, int(HELP_AUTO_DELETE_SEC))
+    # Keep HELP short-lived too.
+    auto_del = min(15, max(5, int(HELP_AUTO_DELETE_SEC)))
     help_text = (
         "🆘 **Dostępne komendy**\n"
         f"\n⏳ _Ta wiadomość zostanie usunięta za {auto_del} sekund._\n"
@@ -2985,20 +3008,11 @@ async def try_apply_help_channel_command(
         "(Bot może usuwać Twoje wiadomości-komendy, żeby kanał był czysty.)"
     )
 
-    sent_msgs: List[discord.Message] = []
     try:
         for part in chunk_message(help_text):
-            sent = await message.channel.send(part)
-            sent_msgs.append(sent)
+            await _send_temp(message.channel, part, delete_after=auto_del)
     except Exception:
         logger.exception("HELP: failed to send")
-
-    # Auto-delete help messages to keep channel clean.
-    for sm in sent_msgs:
-        try:
-            asyncio.create_task(delete_message_later(sm, auto_del))
-        except Exception:
-            pass
 
     try:
         await message.delete()
@@ -3042,9 +3056,9 @@ async def try_apply_removewar_channel_command(
                 ref_msg=None,
             )
             if not updated:
-                await message.channel.send(f"🗑️ Usunięto wojnę z listy: `{war_id}`")
+                await _send_temp(message.channel, f"🗑️ Usunięto wojnę z listy: `{war_id}`", delete_after=AUTO_DELETE_BOT_RESPONSES_SEC)
         else:
-            await message.channel.send(f"ℹ️ Nie znaleziono wojny: `{war_id}`")
+            await _send_temp(message.channel, f"ℹ️ Nie znaleziono wojny: `{war_id}`", delete_after=AUTO_DELETE_BOT_RESPONSES_SEC)
     except Exception:
         logger.exception("REMOVEWAR: failed")
 
@@ -3081,19 +3095,31 @@ async def try_apply_unlistwar_channel_command(
             rec = await asyncio.to_thread(WAR_STORE.get_war, war_id)
 
         if not isinstance(rec, dict):
-            await message.channel.send(f"ℹ️ Nie znaleziono wojny: `{war_id}`")
+            _m = await message.channel.send(f"ℹ️ Nie znaleziono wojny: `{war_id}`")
+        try:
+            asyncio.create_task(delete_message_later(_m, AUTO_DELETE_BOT_RESPONSES_SEC))
+        except Exception:
+            pass
             return True
 
         status = str(rec.get("status") or "").lower()
         if status != "draft":
             if status == "confirmed":
-                await message.channel.send(
-                    f"ℹ️ `{war_id}` jest już zatwierdzona (CONFIRMED). Użyj `REMOVEWAR {war_id}` jeśli chcesz ją usunąć ze strony."
+                _m = await message.channel.send(
+                    f"ℹ️ `{war_id}` jest już zatwierdzona (CONFIRMED)
+        try:
+            asyncio.create_task(delete_message_later(_m, AUTO_DELETE_BOT_RESPONSES_SEC))
+        except Exception:
+            pass. Użyj `REMOVEWAR {war_id}` jeśli chcesz ją usunąć ze strony."
                 )
             else:
-                await message.channel.send(
+                _m = await message.channel.send(
                     f"ℹ️ `UNLISTWAR` działa tylko dla wojen w statusie DRAFT. Status `{war_id}`: `{status or 'unknown'}`"
                 )
+        try:
+            asyncio.create_task(delete_message_later(_m, AUTO_DELETE_BOT_RESPONSES_SEC))
+        except Exception:
+            pass
             return True
 
         # Best-effort delete the LISTWAR bot message (if we have metadata).
@@ -3132,9 +3158,17 @@ async def try_apply_unlistwar_channel_command(
                 await _persist_progress_to_discord(discord_client, what="wars")
             except Exception:
                 pass
-            await message.channel.send(f"🧹 Unlisted DRAFT: `{war_id}` (możesz zrobić LISTWAR ponownie, dostaniesz nowe ID)")
+            _m = await message.channel.send(f"🧹 Unlisted DRAFT: `{war_id}` (możesz zrobić LISTWAR ponownie, dostaniesz nowe ID)
+        try:
+            asyncio.create_task(delete_message_later(_m, AUTO_DELETE_BOT_RESPONSES_SEC))
+        except Exception:
+            pass")
         else:
-            await message.channel.send(f"ℹ️ Nie znaleziono wojny: `{war_id}`")
+            _m = await message.channel.send(f"ℹ️ Nie znaleziono wojny: `{war_id}`")
+        try:
+            asyncio.create_task(delete_message_later(_m, AUTO_DELETE_BOT_RESPONSES_SEC))
+        except Exception:
+            pass
 
     except Exception:
         logger.exception("UNLISTWAR: failed")
