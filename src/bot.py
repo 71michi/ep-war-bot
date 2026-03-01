@@ -419,11 +419,158 @@ async def start_keepalive_server():
             wars = wars[:limit]
 
         # Normalize mode for stable UI filtering (legacy records may have mixed case).
+        # Also: dynamically compute "outside current roster" flags for each war player.
+        # This allows REMOVEROSTER to immediately reflect on *all* past wars in the web UI
+        # without mutating historical war records.
+        roster_now = load_roster()
+        roster_keys = set()
+        for n in roster_now:
+            try:
+                k = canonical_key(str(n))
+                if k:
+                    roster_keys.add(k)
+            except Exception:
+                continue
+
         for w in wars:
             m = w.get("mode")
             if isinstance(m, str):
                 mm = m.strip().upper()
                 w["mode"] = mm
+
+            players = w.get("players")
+            if not isinstance(players, list):
+                continue
+
+            # If we detected unassigned points (player left mid-war) at LISTWAR time,
+            # expose it as a synthetic row in the API so the UI can keep totals consistent.
+            try:
+                unassigned_pts = int(w.get("unassigned_points") or 0)
+            except Exception:
+                unassigned_pts = 0
+            if unassigned_pts > 0:
+                players = list(players)
+                players.append({
+                    "rank": None,
+                    "name": "⚠️ Niewidoczny gracz",
+                    "raw": "(opuścił sojusz w trakcie wojny?)",
+                    "points": int(unassigned_pts),
+                    "status": "unassigned",
+                })
+                w["players"] = players
+
+            # ----------------------------
+            # Partial-war normalization (XvX where X!=30)
+            # ----------------------------
+            # Some wars are not full 30v30 (e.g. 27v27). Total alliance score is still 9000,
+            # so per-player raw points are effectively "worth more". For comparability in
+            # per-player averages we compute an adjusted score:
+            #   adjusted = (raw_points * X) / 30
+            # where X is the number of participating ranks in this war.
+            #
+            # We DO NOT mutate stored records on disk. This is computed on-the-fly for API.
+            try:
+                ranks = []
+                for p in players:
+                    if isinstance(p, dict):
+                        try:
+                            r = int(p.get("rank") or 0)
+                        except Exception:
+                            r = 0
+                        if r > 0:
+                            ranks.append(r)
+                participants = int(max(ranks) if ranks else len(players))
+            except Exception:
+                participants = int(len(players))
+
+            # If the war record has an explicit participants override (e.g. LISTWAR 27
+            # or reply with "27" after LISTWAR), use it.
+            try:
+                p_ovr = int(w.get("participants_override") or 0)
+            except Exception:
+                p_ovr = 0
+            try:
+                p_decl = int(w.get("participants_declared") or 0)
+            except Exception:
+                p_decl = 0
+
+            if 0 < p_ovr <= 60:
+                participants = int(p_ovr)
+            elif 0 < p_decl <= 60:
+                participants = int(p_decl)
+
+            # sanity clamp
+            if participants <= 0:
+                participants = int(len(players))
+            if participants <= 0:
+                participants = 30
+            if participants > 60:
+                participants = int(len(players)) or 30
+
+            is_scaled_war = bool(participants != 30)
+            w["participants"] = int(participants)
+            w["is_scaled_war"] = is_scaled_war
+            w["scale_factor"] = float(participants) / 30.0
+
+            outside_count = 0
+            for p in players:
+                if not isinstance(p, dict):
+                    continue
+                status = str(p.get("status") or "ok").lower()
+
+                # Synthetic row: do not scale, do not roster-check.
+                if status == "unassigned":
+                    try:
+                        raw_pts = int(p.get("points") or 0)
+                    except Exception:
+                        raw_pts = 0
+                    p["points_raw"] = int(raw_pts)
+                    p["points"] = int(raw_pts)
+                    p["points_scaled"] = False
+                    p["points_factor"] = 1.0
+                    p["participants"] = int(participants)
+                    p["outside_current_roster"] = None
+                    continue
+
+                # Keep raw points, and (optionally) replace displayed points with adjusted points.
+                try:
+                    raw_pts = int(p.get("points") or 0)
+                except Exception:
+                    raw_pts = 0
+                p["points_raw"] = int(raw_pts)
+                if is_scaled_war:
+                    adj = (float(raw_pts) * float(participants)) / 30.0
+                    # Keep one decimal for transparency (27/30 etc.)
+                    p["points"] = round(adj, 1)
+                    p["points_scaled"] = True
+                    p["points_factor"] = float(participants) / 30.0
+                    p["participants"] = int(participants)
+                else:
+                    p["points_scaled"] = False
+                    p["points_factor"] = 1.0
+                    p["participants"] = 30
+
+                # For UNKNOWN rows we cannot reliably map to roster -> keep as null
+                if status == "unknown":
+                    p["outside_current_roster"] = None
+                    continue
+
+                # Prefer display name (already normalized / roster-matched), fallback to raw
+                nm = p.get("name") or p.get("raw") or ""
+                try:
+                    pk = canonical_key(str(nm))
+                except Exception:
+                    pk = ""
+
+                is_outside = True
+                if pk and pk in roster_keys:
+                    is_outside = False
+                p["outside_current_roster"] = bool(is_outside)
+                if is_outside:
+                    outside_count += 1
+
+            # Aggregate for convenience (UI may show counts)
+            w["outside_current_roster_count"] = int(outside_count)
 
         return web.json_response({"wars": wars, "count": len(wars)})
 
@@ -744,6 +891,20 @@ class WarPost:
     channel_id: Optional[int] = None
     created_at_ts: Optional[int] = None
     lines_by_rank: Dict[int, WarLine] = field(default_factory=dict)
+
+    # When the alliance total from the summary is larger than the sum of visible players,
+    # we keep the difference here. This happens when a player leaves the alliance mid-war
+    # (before the results screen is generated) and therefore does not appear in the
+    # individual ranking list, even though their points are included in the alliance total.
+    #
+    # We do NOT invent a name; the web UI can show it as an "unassigned" row.
+    unassigned_points: int = 0
+
+    # Participants override for partial-war normalization (XvX where X!=30).
+    # If provided, this value is used as X for score scaling.
+    participants_override: Optional[int] = None
+    # If True, bot should ask the user for X (participants) after LISTWAR.
+    participants_pending: bool = False
 
     def missing_ranks(self) -> List[int]:
         return [r for r in range(1, self.expected_max_rank + 1) if r not in self.lines_by_rank]
@@ -1184,6 +1345,18 @@ def build_post(summary: WarSummary, players: List[PlayerScore], expected_max_ran
 
     apply_roster_mapping(post.lines_by_rank, roster)
 
+    # Compute "unassigned" points when a player is missing from the ranking list
+    # but their points are included in the alliance total shown on the summary screen.
+    try:
+        alliance_total = int(getattr(summary, 'our_score', 0) or 0)
+    except Exception:
+        alliance_total = 0
+    pts_sum = post.total_points_sum()
+    if alliance_total > 0 and pts_sum < alliance_total:
+        post.unassigned_points = int(alliance_total - pts_sum)
+    else:
+        post.unassigned_points = 0
+
     missing = post.missing_ranks()
     unknown = post.unknown_ranks()
     out_of_roster = post.out_of_roster_ranks()
@@ -1247,6 +1420,26 @@ def render_post(post: WarPost) -> str:
             pass
     header += "\n"
 
+    # Participants info / prompt (for partial-war normalization).
+    # We keep it near the top so it's easy to notice.
+    try:
+        x_decl = int(post.expected_max_rank or 0)
+    except Exception:
+        x_decl = 0
+    x_ovr: Optional[int] = None
+    try:
+        if getattr(post, 'participants_override', None) is not None:
+            x_ovr = int(getattr(post, 'participants_override', None) or 0)
+    except Exception:
+        x_ovr = None
+
+    if x_ovr and x_ovr > 0:
+        header += f"Uczestnicy: **{x_ovr}** _(ustawione ręcznie)_\n\n"
+    elif getattr(post, 'participants_pending', False):
+        header += "Uczestnicy: *(nieustalone)* — odpowiedz samą liczbą (np. `27`) na tę wiadomość, aby ustawić X dla przeliczeń XvX.\n\n"
+    elif x_decl and x_decl > 0:
+        header += f"Uczestnicy: **{x_decl}** _(z listy)_\n\n"
+
     lines_out: List[str] = []
     for r in sorted(post.lines_by_rank.keys()):
         ln = post.lines_by_rank[r]
@@ -1273,6 +1466,12 @@ def render_post(post: WarPost) -> str:
         alliance_total = 0
     sum_mismatch = bool(alliance_total and points_sum != alliance_total)
 
+    # If we detected unassigned points (player left mid-war), treat it as a special case:
+    # sum(players) + unassigned == alliance_total should be considered "OK".
+    unassigned = int(getattr(post, 'unassigned_points', 0) or 0)
+    if alliance_total and unassigned > 0:
+        sum_mismatch = bool((points_sum + unassigned) != alliance_total)
+
     # Missing war summary fields (for the 1-screenshot workflow or when OCR misses parts of SOJUSZ).
     summary_missing: List[str] = []
     if not (getattr(s, "our_alliance", None) or "").strip():
@@ -1290,7 +1489,7 @@ def render_post(post: WarPost) -> str:
         summary_missing.append("tryb wojenny")
     need_fix_summary = bool(summary_missing)
 
-    if missing or unknown or out_of_roster or sum_mismatch or need_fix_summary:
+    if missing or unknown or out_of_roster or sum_mismatch or need_fix_summary or unassigned:
         warn_lines: List[str] = ["", "⚠️ **Wymagane poprawki**"]
         if missing:
             warn_lines.append("• Brakujące pozycje: " + ", ".join(str(x) for x in missing))
@@ -1315,7 +1514,11 @@ def render_post(post: WarPost) -> str:
                 warn_lines.append("  Uzupełnij reply: `TRYB <tryb>`, `WYNIK <nasz> <wrog>`, `SOJUSZE <nasz> vs <wrog>`, `REZULTAT Zwycięstwo/Porażka`")
                 warn_lines.append("  albo jedną linijką: `SUMMARY <nasz> | <wrog> | <rezultat> | <nasz_score> | <wrog_score> | <tryb>`")
 
-        if sum_mismatch:
+        if unassigned:
+            warn_lines.append(
+                "• Brakujące punkty w rankingu: %d (prawdopodobnie gracz opuścił sojusz w trakcie wojny — jego punkty są wliczone w wynik sojuszu, ale nie widać go na liście)." % unassigned
+            )
+        elif sum_mismatch:
             diff_pts = points_sum - alliance_total
             warn_lines.append("• Suma punktów graczy = %d, suma sojuszu (z podsumowania) = %d (różnica: %+d)" % (points_sum, alliance_total, diff_pts))
 
@@ -1370,7 +1573,9 @@ def _post_to_store_record(
         alliance_total = int(s.our_score or 0)
     except Exception:
         alliance_total = 0
-    points_sum_matches_alliance = bool(alliance_total and points_sum == alliance_total)
+    unassigned = int(getattr(post, 'unassigned_points', 0) or 0)
+    points_sum_effective = int(points_sum) + int(unassigned)
+    points_sum_matches_alliance = bool(alliance_total and points_sum_effective == alliance_total)
     now_ts = int(time.time())
 
     ref_id = str(ref_msg.id) if ref_msg is not None else (str(post.ref_message_id) if post.ref_message_id else None)
@@ -1466,8 +1671,17 @@ def _post_to_store_record(
         # Backwards compatible aliases (older UI keys)
         "enemy_score": int(s.opponent_score),
         "diff": int(diff),
-        "players_points_sum": int(points_sum),
+        # Backwards-compatible: keep players_points_sum as the *effective* sum.
+        # Older UI code uses this field to validate totals.
+        "players_points_sum": int(points_sum_effective),
+        "players_points_sum_list": int(points_sum),
+        "unassigned_points": int(unassigned),
+        "players_points_sum_effective": int(points_sum_effective),
         "players_points_sum_matches_alliance": bool(points_sum_matches_alliance),
+        # Participants (X) for partial-war normalization. Prefer manual override.
+        "participants_declared": int(getattr(post, 'expected_max_rank', 0) or 0),
+        "participants_override": (int(getattr(post, 'participants_override', 0) or 0) if getattr(post, 'participants_override', None) is not None else None),
+        "participants_pending": bool(getattr(post, 'participants_pending', False)),
         "mode": mode_norm,
         "players": players,
         "unknown": unknown,
@@ -2156,6 +2370,420 @@ async def try_apply_removeroster_command(
     return True
 
 
+def _parse_assignunassigned(text: str) -> Optional[Dict[str, object]]:
+    """Parse: ASSIGNUNASSIGNED <nick> [points].
+
+    Examples:
+      - "ASSIGNUNASSIGNED Krati"               (uses full unassigned_points)
+      - "ASSIGNUNASSIGNED Krati 312"           (assigns 312 from unassigned)
+      - "ASSIGNUNASSIGNED: Krati, 312"         (comma supported)
+    """
+    if not text:
+        return None
+    t = text.strip()
+    if not re.match(r"^ASSIGNUNASSIGNED\b", t, flags=re.IGNORECASE):
+        return None
+
+    rest = re.sub(r"^ASSIGNUNASSIGNED\b\s*[:\-]?\s*", "", t, flags=re.IGNORECASE).strip()
+    if not rest:
+        return None
+
+    # Allow comma between name and points.
+    rest = rest.replace("\n", " ").strip()
+    parts = [p.strip() for p in re.split(r"\s*,\s*|\s+", rest) if p.strip()]
+    if not parts:
+        return None
+
+    # If last token is an int -> points
+    pts: Optional[int] = None
+    if len(parts) >= 2:
+        try:
+            pts = int(parts[-1])
+            name = " ".join(parts[:-1]).strip()
+        except Exception:
+            pts = None
+            name = " ".join(parts).strip()
+    else:
+        name = parts[0].strip()
+
+    if not name:
+        return None
+    if pts is not None and pts < 0:
+        return None
+
+    return {"name": name, "points": pts}
+
+
+async def try_apply_assignunassigned_command(
+    discord_client: discord.Client,
+    message: discord.Message,
+) -> bool:
+    """Reply command: ASSIGNUNASSIGNED <nick> [points].
+
+    Purpose:
+    When a player leaves the alliance mid-war, they may disappear from the ranking list,
+    but their points are still counted in the alliance total. We store this as
+    `unassigned_points`.
+
+    This command assigns (all or part of) `unassigned_points` to a concrete player so:
+      - totals remain consistent
+      - the player appears in the website/player stats
+
+    Works only as a reply to the bot's war post.
+    """
+    if not (message.reference and message.reference.message_id):
+        return False
+
+    parsed = _parse_assignunassigned(message.content or "")
+    if not parsed:
+        return False
+
+    # Fetch referenced message (the bot war post)
+    ref_msg: Optional[discord.Message] = None
+    if isinstance(message.reference.resolved, discord.Message):
+        ref_msg = message.reference.resolved
+    else:
+        try:
+            ref_msg = await message.channel.fetch_message(message.reference.message_id)
+        except Exception:
+            ref_msg = None
+    if ref_msg is None:
+        return False
+
+    # Resolve war_id
+    post = WAR_POSTS.get(ref_msg.id)
+    war_id = post.war_id if post else _extract_war_id_from_text(ref_msg.content or "")
+    if not war_id:
+        try:
+            await message.channel.send("⚠️ Nie mogę znaleźć ID wojny w tej wiadomości.")
+        except Exception:
+            pass
+        return True
+
+    async with WAR_STORE_LOCK:
+        rec = await asyncio.to_thread(WAR_STORE.get_war, war_id)
+    if not isinstance(rec, dict):
+        try:
+            await message.channel.send(f"⚠️ Nie znaleziono wojny w storage: `{war_id}`")
+        except Exception:
+            pass
+        return True
+
+    try:
+        unassigned = int(rec.get("unassigned_points") or 0)
+    except Exception:
+        unassigned = 0
+    if unassigned <= 0:
+        try:
+            await message.channel.send("ℹ️ Ta wojna nie ma brakujących punktów do przypisania (unassigned_points=0).")
+        except Exception:
+            pass
+        try:
+            await message.delete()
+        except Exception:
+            pass
+        return True
+
+    name = str(parsed.get("name") or "").strip()
+    pts_req = parsed.get("points")
+    try:
+        pts = int(pts_req) if pts_req is not None else int(unassigned)
+    except Exception:
+        pts = int(unassigned)
+
+    if pts <= 0:
+        try:
+            await message.channel.send("⚠️ Punkty muszą być > 0.")
+        except Exception:
+            pass
+        return True
+
+    if pts > unassigned:
+        pts = int(unassigned)
+
+    players = rec.get("players")
+    if not isinstance(players, list):
+        players = []
+
+    # Append a synthetic player row (rank=None). We do not guess rank.
+    players = list(players)
+    players.append({
+        "rank": None,
+        "name": name,
+        "raw": "(przypisane z brakujących punktów)",
+        "points": int(pts),
+        "status": "assigned",
+    })
+
+    # Update unassigned points
+    new_unassigned = int(unassigned) - int(pts)
+    if new_unassigned < 0:
+        new_unassigned = 0
+
+    # Recompute sums
+    sum_list = 0
+    for p in players:
+        if not isinstance(p, dict):
+            continue
+        try:
+            sum_list += int(p.get("points") or 0)
+        except Exception:
+            pass
+    try:
+        our_score = int(rec.get("our_score") or 0)
+    except Exception:
+        our_score = 0
+    sum_effective = int(sum_list) + int(new_unassigned)
+    matches = bool(our_score and sum_effective == our_score)
+
+    now_ts = int(time.time())
+    rec["updated_at_ts"] = now_ts
+    try:
+        rec["updated_at_iso"] = datetime.datetime.fromtimestamp(now_ts, tz=datetime.timezone.utc).isoformat()
+    except Exception:
+        pass
+
+    rec["players"] = players
+    rec["unassigned_points"] = int(new_unassigned)
+    rec["players_points_sum_list"] = int(sum_list)
+    rec["players_points_sum_effective"] = int(sum_effective)
+    rec["players_points_sum"] = int(sum_effective)  # legacy
+    rec["players_points_sum_matches_alliance"] = matches
+
+    async with WAR_STORE_LOCK:
+        await asyncio.to_thread(WAR_STORE.upsert_war, war_id, rec)
+    try:
+        await _persist_progress_to_discord(discord_client, what="wars")
+    except Exception:
+        pass
+
+    # Inform
+    msg = f"✅ Przypisano {pts} pkt do **{name}** (wojna `{war_id}`)."
+    if new_unassigned > 0:
+        msg += f" Pozostało brakujących pkt: **{new_unassigned}**."
+    else:
+        msg += " Brakujące pkt zostały w pełni przypisane (unassigned_points=0)."
+    if our_score:
+        msg += f" Suma (gracze+unassigned) = **{sum_effective}** / wynik sojuszu **{our_score}**."
+
+    try:
+        await message.channel.send(msg)
+    except Exception:
+        pass
+
+    # Delete user's command message
+    try:
+        await message.delete()
+    except Exception:
+        pass
+
+    return True
+
+
+def _warpost_from_store_record(rec: dict) -> Optional[WarPost]:
+    """Best-effort reconstruction of a WarPost from wars_store.json.
+
+    Used for lightweight edits (e.g. participants override) when the in-memory
+    WAR_POSTS cache is missing (restart / deploy).
+    """
+    if not isinstance(rec, dict):
+        return None
+    try:
+        s = WarSummary(
+            result=rec.get("result"),
+            our_alliance=rec.get("our_alliance"),
+            opponent_alliance=rec.get("opponent_alliance"),
+            our_score=rec.get("our_score"),
+            opponent_score=rec.get("opponent_score"),
+            war_mode=rec.get("mode"),
+        )
+    except Exception:
+        s = WarSummary()
+
+    # expected_max_rank is used mainly for display; keep best-effort.
+    try:
+        expected_max_rank = int(rec.get("participants_declared") or 0)
+    except Exception:
+        expected_max_rank = 0
+
+    post = WarPost(summary=s, expected_max_rank=int(expected_max_rank or 0))
+    post.war_id = str(rec.get("war_id") or "").strip()
+    try:
+        post.ref_message_id = int(rec.get("ref_message_id") or 0) or None
+    except Exception:
+        post.ref_message_id = None
+    post.ref_jump_url = rec.get("ref_jump_url")
+    try:
+        post.guild_id = int(rec.get("guild_id") or 0) or None
+    except Exception:
+        post.guild_id = None
+    try:
+        post.channel_id = int(rec.get("channel_id") or 0) or None
+    except Exception:
+        post.channel_id = None
+    try:
+        post.created_at_ts = int(rec.get("created_at_ts") or 0) or None
+    except Exception:
+        post.created_at_ts = None
+
+    try:
+        post.unassigned_points = int(rec.get("unassigned_points") or 0)
+    except Exception:
+        post.unassigned_points = 0
+
+    try:
+        povr = rec.get("participants_override")
+        post.participants_override = (int(povr) if povr is not None else None)
+    except Exception:
+        post.participants_override = None
+    post.participants_pending = bool(rec.get("participants_pending") or False)
+
+    players = rec.get("players")
+    if isinstance(players, list):
+        for p in players:
+            if not isinstance(p, dict):
+                continue
+            try:
+                r = int(p.get("rank") or 0)
+            except Exception:
+                r = 0
+            if r <= 0:
+                continue
+            try:
+                pts = int(p.get("points") or 0)
+            except Exception:
+                pts = 0
+            raw = str(p.get("raw") or "")
+            name = str(p.get("name") or "")
+            st = str(p.get("status") or "ok").lower()
+            ln = WarLine(rank=r, points=int(pts), name_raw=raw, name_display=name)
+            if st == "unknown":
+                ln.name_display = "UNKNOWN"
+                ln.unknown_raw = normalize_display(raw) or raw
+            if st == "out_of_roster":
+                ln.out_of_roster_raw = normalize_display(name) or name
+            post.lines_by_rank[r] = ln
+
+    # keep expected_max_rank consistent
+    try:
+        if post.lines_by_rank:
+            post.expected_max_rank = max(int(r) for r in post.lines_by_rank.keys())
+    except Exception:
+        pass
+    return post
+
+
+async def try_apply_participants_reply_command(discord_client: discord.Client, message: discord.Message) -> bool:
+    """Reply with a single integer (e.g. "27") to set participants X for the war.
+
+    This supports the workflow:
+      - LISTWAR (no X)
+      - bot asks for participants
+      - user replies: 27
+
+    Also works if the bot message is still available but the process restarted.
+    """
+    if not (message.reference and message.reference.message_id):
+        return False
+    txt = (message.content or "").strip()
+    if not txt or not re.match(r"^\d{1,2}$", txt):
+        return False
+    x = int(txt)
+    if not (1 <= x <= 60):
+        return False
+
+    # Load referenced message
+    ref_msg: Optional[discord.Message] = None
+    if isinstance(message.reference.resolved, discord.Message):
+        ref_msg = message.reference.resolved
+    else:
+        try:
+            ref_msg = await message.channel.fetch_message(message.reference.message_id)
+        except Exception:
+            ref_msg = None
+    if not ref_msg or not getattr(ref_msg.author, "bot", False):
+        return False
+
+    war_id = _extract_war_id_from_text(ref_msg.content or "")
+    if not war_id:
+        return False
+
+    # Get post from cache, or reconstruct from store.
+    post = WAR_POSTS.get(ref_msg.id)
+    existing = None
+    try:
+        async with WAR_STORE_LOCK:
+            existing = await asyncio.to_thread(WAR_STORE.get_war, war_id)
+    except Exception:
+        existing = None
+
+    if post is None and isinstance(existing, dict):
+        post = _warpost_from_store_record(existing)
+
+    if post is None:
+        return False
+
+    # Apply override
+    post.participants_override = int(x)
+    post.participants_pending = False
+
+    # Re-render and edit the bot message (best-effort)
+    try:
+        rendered = render_post(post)
+        parts = chunk_message(rendered)
+        if parts:
+            rendered = parts[0]
+        await ref_msg.edit(content=rendered)
+    except Exception:
+        logger.exception("Participants override: failed to edit bot message")
+
+    # Persist to store without changing status
+    try:
+        status = str((existing or {}).get("status") or "draft").lower() if isinstance(existing, dict) else "draft"
+        rec = _post_to_store_record(
+            post,
+            ref_msg=None,
+            bot_msg=ref_msg,
+            store_status=status,
+            confirmed_at_ts=(existing or {}).get("confirmed_at_ts") if isinstance(existing, dict) else None,
+            confirmed_by_user_id=(existing or {}).get("confirmed_by_user_id") if isinstance(existing, dict) else None,
+            confirmed_by_user_tag=(existing or {}).get("confirmed_by_user_tag") if isinstance(existing, dict) else None,
+        )
+        if isinstance(existing, dict):
+            for k in (
+                "ref_message_id",
+                "ref_jump_url",
+                "created_at_ts",
+                "created_at_iso",
+                "guild_id",
+                "channel_id",
+                "details_message_id",
+                "details_jump_url",
+                "details_channel_id",
+            ):
+                if rec.get(k) is None and existing.get(k) is not None:
+                    rec[k] = existing[k]
+        async with WAR_STORE_LOCK:
+            await asyncio.to_thread(WAR_STORE.upsert_war, post.war_id, rec)
+        try:
+            await _persist_progress_to_discord(discord_client, what="wars")
+        except Exception:
+            pass
+    except Exception:
+        logger.exception("Participants override: failed to persist store update")
+
+    # Ack and delete user message
+    try:
+        await ref_msg.add_reaction("✅")
+    except Exception:
+        pass
+    try:
+        await message.delete()
+    except Exception:
+        pass
+    return True
+
+
 async def try_apply_addroster_channel_command(
     discord_client: discord.Client,
     message: discord.Message,
@@ -2316,8 +2944,9 @@ async def try_apply_help_channel_command(
         "\n"
         "**Wojny**\n"
         "• `LISTWAR` — *(reply)* na wiadomość z **1–2 screenami**. Wymagany jest CHAT z rankingiem; SOJUSZ/podsumowanie jest opcjonalne (można uzupełnić ręcznie).\n"
+        "  Opcjonalnie: `LISTWAR 27` aby ustawić liczbę uczestników (X) dla przeliczeń w wojnach XvX.\n"
         "• `23 Nick 250` — *(reply)* na wiadomość bota z listą: popraw nick i punkty na pozycji 23.\n"
-        "• `23 Nick` — *(reply)* popraw tylko nick (punkty zostają).\n• `TRYB <tryb>` — *(reply)* uzupełnia/zmienia tryb wojenny (np. `TRYB Lepszy atak`).\n• `WYNIK <nasz> <wrog>` — *(reply)* ustawia wynik punktowy (np. `WYNIK 5800 5750`).\n• `SOJUSZE <nasz> vs <wrog>` — *(reply)* ustawia nazwy sojuszy.\n• `REZULTAT Zwycięstwo/Porażka` — *(reply)* ustawia rezultat.\n• `SUMMARY <nasz> | <wrog> | <rezultat> | <nasz_score> | <wrog_score> | <tryb>` — *(reply)* uzupełnia wszystko naraz.\n"
+        "• `23 Nick` — *(reply)* popraw tylko nick (punkty zostają).\n• `TRYB <tryb>` — *(reply)* uzupełnia/zmienia tryb wojenny (np. `TRYB Lepszy atak`).\n• `WYNIK <nasz> <wrog>` — *(reply)* ustawia wynik punktowy (np. `WYNIK 5800 5750`).\n• `SOJUSZE <nasz> vs <wrog>` — *(reply)* ustawia nazwy sojuszy.\n• `REZULTAT Zwycięstwo/Porażka` — *(reply)* ustawia rezultat.\n• `SUMMARY <nasz> | <wrog> | <rezultat> | <nasz_score> | <wrog_score> | <tryb>` — *(reply)* uzupełnia wszystko naraz.\n• `ASSIGNUNASSIGNED <nick> [pkt]` — *(reply)* przypisuje brakujące punkty (gdy gracz opuścił sojusz w trakcie wojny i nie ma go na liście). Jeśli nie podasz `pkt`, weźmie całość.\n"
         "• `ADDWAR` — *(reply)* na poprawną listę bota: **zatwierdza** i dodaje wojnę do strony (CONFIRMED).\n"
         "• `UNLISTWAR` — *(reply)* na listę bota: usuwa DRAFT + kasuje wiadomość; albo `UNLISTWAR <ID>` jako komenda na kanale.\n"
         "• `REMOVEWAR <ID>` — usuwa wojnę ze strony (ID z nagłówka listy).\n"
@@ -3203,7 +3832,7 @@ def main():
             tok0 = text.split()[0]
             tok0_clean = tok0.strip("[](){}")
             tok0_up = tok0_clean.upper()
-            if not (tok0_up in {"LISTWAR", "ADDWAR", "ADDROSTER", "REMOVEROSTER", "TRYB", "MODE", "WAR_MODE", "WYNIK", "SCORE", "SOJUSZE", "ALLIANCES", "REZULTAT", "RESULT", "SUMMARY", "PODSUMOWANIE", "DATA", "DATE", "UNLISTWAR"} or tok0_clean.isdigit()):
+            if not (tok0_up in {"LISTWAR", "ADDWAR", "ADDROSTER", "REMOVEROSTER", "ASSIGNUNASSIGNED", "TRYB", "MODE", "WAR_MODE", "WYNIK", "SCORE", "SOJUSZE", "ALLIANCES", "REZULTAT", "RESULT", "SUMMARY", "PODSUMOWANIE", "DATA", "DATE", "UNLISTWAR"} or tok0_clean.isdigit()):
                 return
         else:
             if not text:
@@ -3323,6 +3952,19 @@ def main():
 
             # LISTWAR: reply to a message containing the two screenshots.
             if re.match(r"^\s*LISTWAR\b", text_raw, flags=re.IGNORECASE):
+                # Optional parameter: LISTWAR <X> where X is number of participants (e.g. 27).
+                participants_override: Optional[int] = None
+                try:
+                    toks = (text_raw or "").strip().split()
+                    if len(toks) >= 2:
+                        maybe = toks[1].strip().strip("[](){}")
+                        if maybe.isdigit():
+                            x = int(maybe)
+                            if 1 <= x <= 60:
+                                participants_override = x
+                except Exception:
+                    participants_override = None
+
                 # Fetch referenced message (the one with screenshots)
                 ref_msg: Optional[discord.Message] = None
                 if isinstance(message.reference.resolved, discord.Message):
@@ -3459,6 +4101,15 @@ def main():
 
                     post = build_post(summary, players, expected_max_rank)
                     post.war_id = war_id
+
+                    # Participants override / prompt
+                    if participants_override is not None:
+                        post.participants_override = int(participants_override)
+                        post.participants_pending = False
+                    else:
+                        post.participants_override = None
+                        post.participants_pending = True
+
                     # Attach source metadata for traceability and later ADDWAR confirmation.
                     post.ref_message_id = ref_msg.id
                     try:
@@ -3592,6 +4243,27 @@ def main():
                     return
             except Exception:
                 logger.exception("Błąd podczas REMOVEROSTER")
+                had_exception = True
+
+            # ASSIGNUNASSIGNED: reply to the bot's war post to assign missing points
+            # (player left alliance mid-war and is not visible on the ranking list).
+            try:
+                handled = await try_apply_assignunassigned_command(client, message)
+                if handled:
+                    logger.info("ASSIGNUNASSIGNED handled -> done")
+                    return
+            except Exception:
+                logger.exception("Błąd podczas ASSIGNUNASSIGNED")
+                had_exception = True
+
+            # Participants override: reply with a single integer (e.g. "27") to the LISTWAR bot post.
+            try:
+                handled = await try_apply_participants_reply_command(client, message)
+                if handled:
+                    logger.info("Participants override handled -> done")
+                    return
+            except Exception:
+                logger.exception("Błąd podczas participants override")
                 had_exception = True
 
             try:
