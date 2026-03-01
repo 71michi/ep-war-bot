@@ -29,6 +29,19 @@ from rapidfuzz import fuzz, process
 setup_logging()
 logger = logging.getLogger("warbot")
 
+# ----------------------------
+# App metadata (used by Web UI footer)
+# ----------------------------
+# Override via environment variables on Render:
+#   EPWAR_VERSION: e.g. v3.4.24
+#   EPWAR_BUILD:   e.g. build: 2026-03-01 22:05:00 CET
+APP_VERSION = env_str("EPWAR_VERSION", "v3.4.24")
+_STARTED_AT = datetime.now().astimezone()
+BUILD_INFO = env_str(
+    "EPWAR_BUILD",
+    "build: " + _STARTED_AT.strftime("%Y-%m-%d %H:%M:%S %Z"),
+)
+
 
 # ----------------------------
 # Duplicate-response guard
@@ -540,8 +553,9 @@ async def start_keepalive_server():
                 p["points_raw"] = int(raw_pts)
                 if is_scaled_war:
                     adj = (float(raw_pts) * float(participants)) / 30.0
-                    # Keep one decimal for transparency (27/30 etc.)
-                    p["points"] = round(adj, 1)
+                    # Round to full points for display/statistics consistency.
+                    # (User can still see raw points in UI note/tooltip.)
+                    p["points"] = int(round(adj))
                     p["points_scaled"] = True
                     p["points_factor"] = float(participants) / 30.0
                     p["participants"] = int(participants)
@@ -578,10 +592,19 @@ async def start_keepalive_server():
         roster = load_roster()
         return web.json_response({"roster": roster, "count": len(roster)})
 
+    async def api_meta(_request):
+        # Version/build info displayed in the Web UI footer.
+        return web.json_response({
+            "version": APP_VERSION,
+            "build": BUILD_INFO,
+            "started_at": int(_STARTED_AT.timestamp()),
+        })
+
     app.router.add_get("/", index)
     app.router.add_get("/health", health)
     app.router.add_get("/api/wars", api_wars)
     app.router.add_get("/api/roster", api_roster)
+    app.router.add_get("/api/meta", api_meta)
 
     runner = web.AppRunner(app)
     await runner.setup()
@@ -590,7 +613,7 @@ async def start_keepalive_server():
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
 
-    logger.info("HTTP listening on :%s (/, /health, /api/wars, /api/roster)", port)
+    logger.info("HTTP listening on :%s (/, /health, /api/wars, /api/roster, /api/meta)", port)
 
 
 # ----------------------------

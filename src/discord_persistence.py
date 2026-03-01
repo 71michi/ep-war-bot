@@ -63,6 +63,60 @@ async def _find_pinned_with_prefix(channel: discord.TextChannel, prefix: str) ->
     return best
 
 
+def _normalize_attachment_stem(filename: str) -> str:
+    """Normalize Discord attachment filenames.
+
+    Users sometimes upload files that their OS renamed to e.g.:
+      - wars_store (1).json
+      - wars_store (2).json.gz
+
+    This helper returns a stable stem for matching.
+    """
+    fn = (filename or "").strip()
+    if fn.endswith(".gz"):
+        fn = fn[:-3]
+    if fn.endswith(".json"):
+        fn = fn[:-5]
+
+    # Strip trailing " (N)" pattern.
+    if fn.endswith(")") and " (" in fn:
+        base, maybe = fn.rsplit(" (", 1)
+        num = maybe[:-1]
+        if num.isdigit():
+            fn = base
+    return fn
+
+
+async def _find_pinned_by_attachment_stem(channel: discord.TextChannel, wanted_stem: str) -> Optional[discord.Message]:
+    """Fallback: find newest pinned message that has an attachment matching wanted_stem.
+
+    This is used when the pinned message was created manually and doesn't start with our prefix tag.
+    """
+    try:
+        pins = await channel.pins()
+    except Exception:
+        logger.exception("Failed to list pinned messages")
+        return None
+
+    best: Optional[discord.Message] = None
+    for m in pins:
+        if not m.attachments:
+            continue
+        att = m.attachments[0]
+        stem = _normalize_attachment_stem(att.filename or "")
+        if stem != wanted_stem:
+            continue
+        if best is None:
+            best = m
+        else:
+            try:
+                if m.created_at and best.created_at and m.created_at > best.created_at:
+                    best = m
+            except Exception:
+                best = m
+    return best
+
+
 def _read_file_bytes(path: str) -> bytes:
     with open(path, "rb") as f:
         return f.read()
@@ -140,9 +194,21 @@ async def restore_snapshot(
     Returns True if restored.
     """
     msg = await _find_pinned_with_prefix(channel, prefix)
+
+    # If there is no tagged snapshot, try to recover from a manually pinned file
+    # with the expected filename (including OS-added " (1)" suffixes).
     if msg is None:
-        logger.info("No pinned snapshot for %s", prefix)
-        return False
+        wanted_stem = _normalize_attachment_stem(os.path.basename(dest_path))
+        msg = await _find_pinned_by_attachment_stem(channel, wanted_stem)
+        if msg is not None:
+            logger.warning(
+                "Restoring %s from manually pinned attachment (no %s tag found)",
+                wanted_stem,
+                prefix,
+            )
+        else:
+            logger.info("No pinned snapshot for %s", prefix)
+            return False
 
     att = msg.attachments[0]
     try:

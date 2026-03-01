@@ -398,11 +398,21 @@
   </footer>
 
 <script>
-  // Footer metadata
-  const APP_VERSION = 'v3.4.10';
-  const BUILD_INFO = 'build: 2026-01-22 18:15:23 CET';
-  document.getElementById('footerVersion').textContent = APP_VERSION;
-  document.getElementById('footerBuild').textContent = BUILD_INFO;
+  // Footer metadata (fetched from backend so it stays accurate after deploys)
+  async function loadFooterMeta() {
+    try {
+      const r = await fetch('/api/meta', { cache: 'no-store' });
+      if (!r.ok) throw new Error('meta http ' + r.status);
+      const m = await r.json();
+      document.getElementById('footerVersion').textContent = m.version || '';
+      document.getElementById('footerBuild').textContent = m.build || '';
+    } catch (e) {
+      // Fallback: avoid empty footer even if API is not available.
+      document.getElementById('footerVersion').textContent = '';
+      document.getElementById('footerBuild').textContent = '';
+    }
+  }
+  loadFooterMeta();
 
   // UI preference: show scaled points for wars XvX (X != 30) or raw points.
   const LS_USE_SCALED = 'epwar_use_scaled_points_v1';
