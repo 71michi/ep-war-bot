@@ -3096,30 +3096,26 @@ async def try_apply_unlistwar_channel_command(
 
         if not isinstance(rec, dict):
             _m = await message.channel.send(f"ℹ️ Nie znaleziono wojny: `{war_id}`")
-        try:
-            asyncio.create_task(delete_message_later(_m, AUTO_DELETE_BOT_RESPONSES_SEC))
-        except Exception:
-            pass
+            try:
+                asyncio.create_task(delete_message_later(_m, AUTO_DELETE_BOT_RESPONSES_SEC))
+            except Exception:
+                pass
             return True
 
         status = str(rec.get("status") or "").lower()
         if status != "draft":
             if status == "confirmed":
                 _m = await message.channel.send(
-                    f"ℹ️ `{war_id}` jest już zatwierdzona (CONFIRMED)
-        try:
-            asyncio.create_task(delete_message_later(_m, AUTO_DELETE_BOT_RESPONSES_SEC))
-        except Exception:
-            pass. Użyj `REMOVEWAR {war_id}` jeśli chcesz ją usunąć ze strony."
+                    f"ℹ️ `{war_id}` jest już zatwierdzona (CONFIRMED). Użyj `REMOVEWAR {war_id}` jeśli chcesz ją usunąć ze strony."
                 )
             else:
                 _m = await message.channel.send(
                     f"ℹ️ `UNLISTWAR` działa tylko dla wojen w statusie DRAFT. Status `{war_id}`: `{status or 'unknown'}`"
                 )
-        try:
-            asyncio.create_task(delete_message_later(_m, AUTO_DELETE_BOT_RESPONSES_SEC))
-        except Exception:
-            pass
+            try:
+                asyncio.create_task(delete_message_later(_m, AUTO_DELETE_BOT_RESPONSES_SEC))
+            except Exception:
+                pass
             return True
 
         # Best-effort delete the LISTWAR bot message (if we have metadata).
@@ -3158,11 +3154,13 @@ async def try_apply_unlistwar_channel_command(
                 await _persist_progress_to_discord(discord_client, what="wars")
             except Exception:
                 pass
-            _m = await message.channel.send(f"🧹 Unlisted DRAFT: `{war_id}` (możesz zrobić LISTWAR ponownie, dostaniesz nowe ID)
-        try:
-            asyncio.create_task(delete_message_later(_m, AUTO_DELETE_BOT_RESPONSES_SEC))
-        except Exception:
-            pass")
+            _m = await message.channel.send(
+                f"🧹 Unlisted DRAFT: `{war_id}` (możesz zrobić LISTWAR ponownie, dostaniesz nowe ID)"
+            )
+            try:
+                asyncio.create_task(delete_message_later(_m, AUTO_DELETE_BOT_RESPONSES_SEC))
+            except Exception:
+                pass
         else:
             _m = await message.channel.send(f"ℹ️ Nie znaleziono wojny: `{war_id}`")
         try:
