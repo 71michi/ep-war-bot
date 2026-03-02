@@ -53,7 +53,7 @@ async def _send_temp(channel: discord.abc.Messageable, content: str, *, delete_a
 # Override via environment variables on Render:
 #   EPWAR_VERSION: e.g. v3.4.24
 #   EPWAR_BUILD:   e.g. build: 2026-03-01 22:05:00 CET
-APP_VERSION = env_str("EPWAR_VERSION", "v3.4.31")
+APP_VERSION = env_str("EPWAR_VERSION", "v3.4.33")
 _STARTED_AT = datetime.now().astimezone()
 BUILD_INFO = env_str(
     "EPWAR_BUILD",
@@ -4397,29 +4397,18 @@ def main():
 
             reset_trace_id(token)
 
-
     async def _run_discord_with_backoff():
         """Run the Discord client with exponential backoff on Cloudflare/HTTP 429.
 
-        Render (and other PaaS) may restart the process aggressively on failure.
         When Discord Cloudflare returns Error 1015 (HTTP 429), immediate exit causes a crash-loop
         that prolongs the ban. We sleep and retry instead.
+
+        IMPORTANT: We do not close the client/session on 429. Closing the underlying aiohttp session
+        makes subsequent login attempts fail with "Session is closed" on discord.py.
         """
         backoff = 30  # seconds
         max_backoff = 10 * 60
 
-        async def _safe_close():
-            """Best-effort close to avoid aiohttp session leaks on failed login.
-
-            We *must not* call client.close() here because it permanently marks the client as closed
-            and prevents subsequent retries. Instead, close the underlying HTTP session if it exists.
-            """
-            try:
-                http = getattr(client, 'http', None)
-                if http is not None and hasattr(http, 'close'):
-                    await http.close()
-            except Exception:
-                pass
         while True:
             try:
                 # client.start() only returns when the client is closed.
@@ -4434,7 +4423,6 @@ def main():
                         'Discord login is rate-limited (HTTP 429 / CF 1015). Sleeping %ss before retry...',
                         backoff,
                     )
-                    await _safe_close()
                     await asyncio.sleep(backoff)
                     backoff = min(backoff * 2, max_backoff)
                     continue
@@ -4442,10 +4430,20 @@ def main():
             except Exception:
                 # Avoid tight loops on unexpected failures.
                 logger.exception('Discord client crashed; retrying in 30s...')
-                await _safe_close()
                 await asyncio.sleep(30)
 
-    asyncio.run(_run_discord_with_backoff())
+    async def _main_async():
+        # Bind the HTTP port first so Render sees an open port even if Discord login is rate-limited.
+        try:
+            await start_keepalive_server()
+        except Exception:
+            logger.exception("Failed to start HTTP server")
+
+        # Run Discord with backoff (blocks until connected and closed).
+        await _run_discord_with_backoff()
+
+    asyncio.run(_main_async())
+
 
 
 if __name__ == "__main__":
