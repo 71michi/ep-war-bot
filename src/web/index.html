@@ -788,7 +788,7 @@
         else if (status === 'assigned') { statusHtml = `<span class="pill ok status-pill">Przypisane</span>`; }
         else if (status === 'unknown') { statusHtml = `<span class="pill warn status-pill">UNKNOWN</span>`; rowClass = 'row-unknown'; }
         else if (status === 'out_of_roster') { statusHtml = `<span class="pill warn status-pill">Poza rosterem</span>`; rowClass = 'row-oor'; }
-        else if (outsideNow) { statusHtml = `<span class="pill warn status-pill">Poza rosterem (teraz)</span>`; rowClass = 'row-oor'; }
+        else if (outsideNow) { statusHtml = `<span class="pill warn status-pill">Poza rosterem</span>`; rowClass = 'row-oor'; }
 
         const r = String(p.rank ?? '').trim();
         const rankNum = r ? Number(r) : NaN;
@@ -818,7 +818,7 @@
         else if (status === 'assigned') { statusHtml = `<span class="pill ok">Przypisane</span>`; }
         else if (status === 'unknown') { statusHtml = `<span class="pill warn">UNKNOWN</span>`; rowClass = 'row-unknown'; }
         else if (status === 'out_of_roster') { statusHtml = `<span class="pill warn">Poza rosterem</span>`; rowClass = 'row-oor'; }
-        else if (outsideNow) { statusHtml = `<span class="pill warn">Poza rosterem (teraz)</span>`; rowClass = 'row-oor'; }
+        else if (outsideNow) { statusHtml = `<span class="pill warn">Poza rosterem</span>`; rowClass = 'row-oor'; }
 
         const r = String(p.rank ?? '').trim();
         const rankNum = r ? Number(r) : NaN;
