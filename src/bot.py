@@ -4407,6 +4407,19 @@ def main():
         """
         backoff = 30  # seconds
         max_backoff = 10 * 60
+
+        async def _safe_close():
+            """Best-effort close to avoid aiohttp session leaks on failed login.
+
+            We *must not* call client.close() here because it permanently marks the client as closed
+            and prevents subsequent retries. Instead, close the underlying HTTP session if it exists.
+            """
+            try:
+                http = getattr(client, 'http', None)
+                if http is not None and hasattr(http, 'close'):
+                    await http.close()
+            except Exception:
+                pass
         while True:
             try:
                 # client.start() only returns when the client is closed.
@@ -4421,6 +4434,7 @@ def main():
                         'Discord login is rate-limited (HTTP 429 / CF 1015). Sleeping %ss before retry...',
                         backoff,
                     )
+                    await _safe_close()
                     await asyncio.sleep(backoff)
                     backoff = min(backoff * 2, max_backoff)
                     continue
@@ -4428,6 +4442,7 @@ def main():
             except Exception:
                 # Avoid tight loops on unexpected failures.
                 logger.exception('Discord client crashed; retrying in 30s...')
+                await _safe_close()
                 await asyncio.sleep(30)
 
     asyncio.run(_run_discord_with_backoff())
