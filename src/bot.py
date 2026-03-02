@@ -53,7 +53,7 @@ async def _send_temp(channel: discord.abc.Messageable, content: str, *, delete_a
 # Override via environment variables on Render:
 #   EPWAR_VERSION: e.g. v3.4.24
 #   EPWAR_BUILD:   e.g. build: 2026-03-01 22:05:00 CET
-APP_VERSION = env_str("EPWAR_VERSION", "v3.4.39")
+APP_VERSION = env_str("EPWAR_VERSION", "v3.4.41")
 _STARTED_AT = datetime.now().astimezone()
 BUILD_INFO = env_str(
     "EPWAR_BUILD",
@@ -490,11 +490,14 @@ async def start_keepalive_server():
             except Exception:
                 continue
 
+        wars_out = []
+
         for w in wars:
+            w_out = dict(w)
             m = w.get("mode")
             if isinstance(m, str):
                 mm = m.strip().upper()
-                w["mode"] = mm
+                w_out["mode"] = mm
 
             players = w.get("players")
             if not isinstance(players, list):
@@ -502,20 +505,61 @@ async def start_keepalive_server():
 
             # If we detected unassigned points (player left mid-war) at LISTWAR time,
             # expose it as a synthetic row in the API so the UI can keep totals consistent.
+            # IMPORTANT: do NOT mutate stored war records, and keep this idempotent (no duplicates).
+            players_in = players
+            if isinstance(players_in, list):
+                players_base = [dict(p) if isinstance(p, dict) else p for p in players_in]
+            else:
+                players_base = None
+
+            # Compute unassigned total from stored field or existing synthetic rows (if any).
+            unassigned_total = 0
             try:
-                unassigned_pts = int(w.get("unassigned_points") or 0)
+                unassigned_total = int(w.get("unassigned_points") or 0)
             except Exception:
-                unassigned_pts = 0
-            if unassigned_pts > 0:
-                players = list(players)
-                players.append({
-                    "rank": None,
-                    "name": "⚠️ Niewidoczny gracz",
-                    "raw": "(opuścił sojusz w trakcie wojny?)",
-                    "points": int(unassigned_pts),
-                    "status": "unassigned",
-                })
-                w["players"] = players
+                unassigned_total = 0
+
+            if isinstance(players_base, list):
+                def _is_unassigned_row(pp: dict) -> bool:
+                    try:
+                        if str(pp.get("player_id") or "") == "__unassigned__":
+                            return True
+                        if str(pp.get("status") or "").lower() == "unassigned":
+                            return True
+                        nm = str(pp.get("name") or "")
+                        return nm.startswith("⚠️") and ("Niewidoczny" in nm or "niewidoczny" in nm)
+                    except Exception:
+                        return False
+
+                existing = []
+                kept = []
+                for pp in players_base:
+                    if isinstance(pp, dict) and _is_unassigned_row(pp):
+                        existing.append(pp)
+                    else:
+                        kept.append(pp)
+
+                if unassigned_total <= 0 and existing:
+                    try:
+                        unassigned_total = int(sum(int(e.get("points") or 0) for e in existing if isinstance(e, dict)))
+                    except Exception:
+                        unassigned_total = 0
+
+                players_base = kept
+
+                if unassigned_total > 0:
+                    players_base.append({
+                        "player_id": "__unassigned__",
+                        "rank": None,
+                        "name": "⚠️ Niewidoczny gracz",
+                        "raw": "(opuścił sojusz w trakcie wojny?)",
+                        "points": int(unassigned_total),
+                        "points_raw": int(unassigned_total),
+                        "status": "unassigned",
+                    })
+
+                w_out["players"] = players_base
+                players = players_base
 
             # ----------------------------
             # Partial-war normalization (XvX where X!=30)
@@ -528,8 +572,9 @@ async def start_keepalive_server():
             #
             # We DO NOT mutate stored records on disk. This is computed on-the-fly for API.
             try:
+                players_for_participants = [pp for pp in players if isinstance(pp, dict) and str(pp.get('status') or '').lower() != 'unassigned']
                 ranks = []
-                for p in players:
+                for p in players_for_participants:
                     if isinstance(p, dict):
                         try:
                             r = int(p.get("rank") or 0)
@@ -537,7 +582,7 @@ async def start_keepalive_server():
                             r = 0
                         if r > 0:
                             ranks.append(r)
-                participants = int(max(ranks) if ranks else len(players))
+                participants = int(max(ranks) if ranks else len(players_for_participants))
             except Exception:
                 participants = int(len(players))
 
@@ -566,9 +611,9 @@ async def start_keepalive_server():
                 participants = int(len(players)) or 30
 
             is_scaled_war = bool(participants != 30)
-            w["participants"] = int(participants)
-            w["is_scaled_war"] = is_scaled_war
-            w["scale_factor"] = float(participants) / 30.0
+            w_out["participants"] = int(participants)
+            w_out["is_scaled_war"] = is_scaled_war
+            w_out["scale_factor"] = float(participants) / 30.0
 
             outside_count = 0
             for p in players:
@@ -629,7 +674,9 @@ async def start_keepalive_server():
                     outside_count += 1
 
             # Aggregate for convenience (UI may show counts)
-            w["outside_current_roster_count"] = int(outside_count)
+            w_out["outside_current_roster_count"] = int(outside_count)
+
+            wars_out.append(w_out)
 
         # ----------------------------
         # Opponent normalization + fuzzy grouping (for better filtering)
@@ -644,24 +691,20 @@ async def start_keepalive_server():
             s = _re.sub(r"[^a-z0-9]+", "", k)
             return s[:6] if s else "_"
 
-        # group_id -> label counts
         group_label_counts: dict[str, dict[str, int]] = {}
-        # canonical key -> group id
         key_to_group: dict[str, str] = {}
-        # bucket -> list of representative keys (group ids)
         bucket_reps: dict[str, list[str]] = {}
 
         FUZZY_THRESHOLD = 97
 
-        for w in wars:
-            raw_opp = str((w.get("opponent_alliance") or "")).strip()
+        for ww in wars_out:
+            raw_opp = str((ww.get("opponent_alliance") or "")).strip()
             key = canonical_opponent_key(raw_opp)
-            w["opponent_key"] = key
+            ww["opponent_key"] = key
 
             if not key:
-                # keep stable placeholders
-                w["opponent_group"] = "-"
-                w["opponent_group_label"] = raw_opp or "-"
+                ww["opponent_group"] = "-"
+                ww["opponent_group_label"] = raw_opp or "-"
                 continue
 
             if key in key_to_group:
@@ -682,19 +725,16 @@ async def start_keepalive_server():
                 if best_gid is not None and best_score >= FUZZY_THRESHOLD:
                     gid = best_gid
                 else:
-                    # Create a new group with this key as representative.
                     gid = key
                     bucket_reps.setdefault(_opp_bucket(gid), []).append(gid)
 
                 key_to_group[key] = gid
 
-            w["opponent_group"] = gid
-            # Count labels to choose a stable display name for this group.
+            ww["opponent_group"] = gid
             label = raw_opp or "-"
             d = group_label_counts.setdefault(gid, {})
             d[label] = int(d.get(label, 0) + 1)
 
-        # Choose the most frequent label per group.
         group_label: dict[str, str] = {}
         for gid, counts in group_label_counts.items():
             best = None
@@ -705,12 +745,12 @@ async def start_keepalive_server():
                     best = lbl
             group_label[gid] = best or gid
 
-        for w in wars:
-            gid = w.get("opponent_group")
+        for ww in wars_out:
+            gid = ww.get("opponent_group")
             if isinstance(gid, str) and gid in group_label:
-                w["opponent_group_label"] = group_label[gid]
+                ww["opponent_group_label"] = group_label[gid]
 
-        return web.json_response({"wars": wars, "count": len(wars)})
+        return web.json_response({"wars": wars_out, "count": len(wars_out)})
 
     async def api_roster(_request):
         roster = load_roster()

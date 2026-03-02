@@ -718,23 +718,30 @@
       }
     }
 
-    // Show predicted upcoming war as the very first row (above the history list).
-    // We keep it independent of pagination so it's always visible.
+    // Show predicted upcoming war as the very first row (above the history list)
+    // ONLY in the main (unfiltered) view. When the user filters/sorts, hide it
+    // to avoid mixing "virtual" rows with real history.
     const upcoming = window.__UPCOMING__;
+    const fRes0 = document.getElementById('filterResult').value;
+    const fMode0 = document.getElementById('filterMode').value;
+    const fOpp0 = document.getElementById('filterOpponent').value;
+    const sort0 = document.getElementById('sortBy').value;
+    const isMainView = (!fRes0 && !fMode0 && !fOpp0 && (sort0 === 'date_desc'));
     try {
-      if (upcoming && upcoming.date_ts && upcoming.mode) {
+      if (isMainView && upcoming && upcoming.date_ts && upcoming.mode) {
         const uDateText = escapeHtml(fmtDate(upcoming.date_ts || 0));
         const uMode = (upcoming.mode || '').trim() || '-';
         const uRes = 'Nadchodząca';
         const utr = document.createElement('tr');
-        utr.className = 'upcoming-row';
+        // Reuse the same layout rules as normal war rows (especially on mobile).
+        utr.className = 'war-row upcoming-row';
         utr.innerHTML = `
           <td data-label="Data">
             <div class="war-line">
               <span class="w-date">${uDateText}</span>
               <span class="pill warn">${escapeHtml(uRes)}</span>
-              <span class="w-diff muted">—</span>
-              <span class="w-opp muted">—</span>
+              <span class="w-diff">—</span>
+              <span class="w-opp">—</span>
               <span class="w-mode-wrap" data-mode-full="${escapeHtml(uMode)}">
                 <button class="mode-icon-btn" type="button" aria-label="Tryb wojny">
                   <img class="mode-icon" src="${escapeHtml(getModeIconSrc(uMode))}" alt="${escapeHtml(uMode)}"/>
