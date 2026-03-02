@@ -220,6 +220,33 @@ def is_clean_display(raw: str) -> bool:
         return False
     return True
 
+
+# ----------------------------
+# Opponent/alliance name normalization (for war filtering)
+# ----------------------------
+
+_WS_RE = re.compile(r"\s+", re.UNICODE)
+
+
+def canonical_opponent_key(raw: str) -> str:
+    """Return a canonical key for opponent alliance names.
+
+    Goal: treat visually-identical names as the same even if OCR produces
+    slightly different Unicode (e.g. "I" vs "İ", diacritics, zero-width
+    characters). We keep most symbols/emoji because alliances often use them.
+    """
+    s = (raw or "").strip()
+    if not s:
+        return ""
+    s = unicodedata.normalize("NFKC", s)
+    # Remove zero-width / invisible characters that sometimes appear in OCR.
+    s = s.replace("\u200b", "").replace("\u200c", "").replace("\u200d", "").replace("\ufeff", "")
+    s = s.casefold()
+    # Strip diacritics so e.g. İ -> i
+    s = _strip_diacritics(s)
+    s = _WS_RE.sub(" ", s).strip()
+    return s
+
 def roster_autocorrect(name: str, roster: list[str], min_score: int = 88) -> str:
     'Match name to closest roster entry (by canonical key) if similarity is high.'
     if not roster:

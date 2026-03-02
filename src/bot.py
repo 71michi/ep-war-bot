@@ -4,7 +4,7 @@ import asyncio
 import logging
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
 import io
 from dataclasses import dataclass, field
@@ -17,7 +17,7 @@ import discord
 from .config import env_str, env_int, env_bool
 from .logging_setup import setup_logging, set_trace_id, reset_trace_id, get_trace_id
 from .openai_parser import parse_war_from_images, WarSummary, PlayerScore
-from .nicknames import normalize_with_aliases, normalize_display, roster_match, canonical_key, is_clean_display
+from .nicknames import normalize_with_aliases, normalize_display, roster_match, canonical_key, canonical_opponent_key, is_clean_display
 from .war_store import WarStore
 from .discord_persistence import (
     get_storage_channel, restore_snapshot, upload_snapshot,
@@ -53,7 +53,7 @@ async def _send_temp(channel: discord.abc.Messageable, content: str, *, delete_a
 # Override via environment variables on Render:
 #   EPWAR_VERSION: e.g. v3.4.24
 #   EPWAR_BUILD:   e.g. build: 2026-03-01 22:05:00 CET
-APP_VERSION = env_str("EPWAR_VERSION", "v3.4.37")
+APP_VERSION = env_str("EPWAR_VERSION", "v3.4.39")
 _STARTED_AT = datetime.now().astimezone()
 BUILD_INFO = env_str(
     "EPWAR_BUILD",
@@ -631,6 +631,85 @@ async def start_keepalive_server():
             # Aggregate for convenience (UI may show counts)
             w["outside_current_roster_count"] = int(outside_count)
 
+        # ----------------------------
+        # Opponent normalization + fuzzy grouping (for better filtering)
+        # ----------------------------
+        # OCR often produces slightly different Unicode for the same opponent
+        # alliance name (e.g. "SAMYELI" vs "SAMYELİ"). We compute a canonical
+        # key and then group keys using a high-threshold fuzzy match.
+
+        def _opp_bucket(k: str) -> str:
+            # Bucket by the first few alnum chars to avoid O(n^2) matching.
+            import re as _re
+            s = _re.sub(r"[^a-z0-9]+", "", k)
+            return s[:6] if s else "_"
+
+        # group_id -> label counts
+        group_label_counts: dict[str, dict[str, int]] = {}
+        # canonical key -> group id
+        key_to_group: dict[str, str] = {}
+        # bucket -> list of representative keys (group ids)
+        bucket_reps: dict[str, list[str]] = {}
+
+        FUZZY_THRESHOLD = 97
+
+        for w in wars:
+            raw_opp = str((w.get("opponent_alliance") or "")).strip()
+            key = canonical_opponent_key(raw_opp)
+            w["opponent_key"] = key
+
+            if not key:
+                # keep stable placeholders
+                w["opponent_group"] = "-"
+                w["opponent_group_label"] = raw_opp or "-"
+                continue
+
+            if key in key_to_group:
+                gid = key_to_group[key]
+            else:
+                b = _opp_bucket(key)
+                best_gid = None
+                best_score = -1
+                for rep in bucket_reps.get(b, []):
+                    try:
+                        sc = int(fuzz.WRatio(key, rep))
+                    except Exception:
+                        sc = 0
+                    if sc > best_score:
+                        best_score = sc
+                        best_gid = rep
+
+                if best_gid is not None and best_score >= FUZZY_THRESHOLD:
+                    gid = best_gid
+                else:
+                    # Create a new group with this key as representative.
+                    gid = key
+                    bucket_reps.setdefault(_opp_bucket(gid), []).append(gid)
+
+                key_to_group[key] = gid
+
+            w["opponent_group"] = gid
+            # Count labels to choose a stable display name for this group.
+            label = raw_opp or "-"
+            d = group_label_counts.setdefault(gid, {})
+            d[label] = int(d.get(label, 0) + 1)
+
+        # Choose the most frequent label per group.
+        group_label: dict[str, str] = {}
+        for gid, counts in group_label_counts.items():
+            best = None
+            best_n = -1
+            for lbl, n in counts.items():
+                if n > best_n:
+                    best_n = n
+                    best = lbl
+            group_label[gid] = best or gid
+
+        for w in wars:
+            gid = w.get("opponent_group")
+            if isinstance(gid, str) and gid in group_label:
+                w["opponent_group_label"] = group_label[gid]
+
         return web.json_response({"wars": wars, "count": len(wars)})
 
     async def api_roster(_request):
@@ -663,12 +742,161 @@ async def start_keepalive_server():
             "war_count_confirmed": int(war_count_confirmed),
         })
 
+    # ----------------------------
+    # Upcoming war prediction
+    # ----------------------------
+
+    def _canonical_mode_key(s: str) -> str:
+        """Normalize mode strings for robust matching (handles diacritics/OCR quirks)."""
+        try:
+            import unicodedata
+            import re
+            s = str(s or "")
+            s = unicodedata.normalize("NFKC", s).casefold()
+            s = s.replace("\u200b", "").replace("\u200c", "").replace("\u200d", "")
+            s = "".join(ch for ch in unicodedata.normalize("NFKD", s) if unicodedata.category(ch) != "Mn")
+            s = re.sub(r"\s+", " ", s).strip()
+            return s
+        except Exception:
+            return str(s or "").strip().lower()
+
+    def _predict_next_mode(last_mode: str, wars_newest_first: list[dict]) -> str:
+        """Predict next war mode from the provided rotation diagram.
+
+        Rotation (labels as used by this project, PL):
+          LEPSZY ATAK -> SZTURM -> (POLE KONICZYNY <-> STAROŻYTNY UPÍÓR) -> HORDA NIEUMARŁYCH
+          -> ŻAR Z NIEBA -> GRAD STRZAŁ -> KRWAWA WOJNA -> WOJENNE WYRÓWNANIE -> ŻAR Z NIEBA -> (loop)
+
+        After 'SZTURM' we alternate between 'POLE KONICZYNY' and 'STAROŻYTNY UPÍÓR'.
+        """
+        MODE_ATTACK = "LEPSZY ATAK"
+        MODE_RUSH = "SZTURM"
+        MODE_CLOVER = "POLE KONICZYNY"
+        MODE_ANCIENT = "STAROŻYTNY UPÍÓR"
+        MODE_UNDEAD = "HORDA NIEUMARŁYCH"
+        MODE_SKYFIRE = "ŻAR Z NIEBA"
+        MODE_VOLLEY = "GRAD STRZAŁ"
+        MODE_BLOODY = "KRWAWA WOJNA"
+        MODE_EQUAL = "WOJENNE WYRÓWNANIE"
+
+        # Accept minor spelling/diacritics variants.
+        aliases = {
+            _canonical_mode_key(MODE_ATTACK): MODE_ATTACK,
+            _canonical_mode_key(MODE_RUSH): MODE_RUSH,
+            _canonical_mode_key(MODE_CLOVER): MODE_CLOVER,
+            _canonical_mode_key(MODE_ANCIENT): MODE_ANCIENT,
+            _canonical_mode_key("STAROŻYTNY UPióR"): MODE_ANCIENT,
+            _canonical_mode_key(MODE_UNDEAD): MODE_UNDEAD,
+            _canonical_mode_key(MODE_SKYFIRE): MODE_SKYFIRE,
+            _canonical_mode_key(MODE_VOLLEY): MODE_VOLLEY,
+            _canonical_mode_key(MODE_BLOODY): MODE_BLOODY,
+            _canonical_mode_key(MODE_EQUAL): MODE_EQUAL,
+        }
+
+        last = aliases.get(_canonical_mode_key(last_mode), str(last_mode or "").strip())
+
+        def last_branch_seen() -> str | None:
+            # Scan recent history for which branch-mode was used most recently.
+            for w in wars_newest_first:
+                mk = _canonical_mode_key((w or {}).get("mode") or "")
+                if mk == _canonical_mode_key(MODE_CLOVER):
+                    return MODE_CLOVER
+                if mk in (_canonical_mode_key(MODE_ANCIENT), _canonical_mode_key("STAROŻYTNY UPióR")):
+                    return MODE_ANCIENT
+            return None
+
+        lk = _canonical_mode_key(last)
+        if lk == _canonical_mode_key(MODE_ATTACK):
+            return MODE_RUSH
+        if lk == _canonical_mode_key(MODE_RUSH):
+            prev = last_branch_seen()
+            return MODE_ANCIENT if prev == MODE_CLOVER else MODE_CLOVER
+        if lk in (_canonical_mode_key(MODE_CLOVER), _canonical_mode_key(MODE_ANCIENT), _canonical_mode_key("STAROŻYTNY UPióR")):
+            return MODE_UNDEAD
+        if lk == _canonical_mode_key(MODE_UNDEAD):
+            return MODE_SKYFIRE
+        if lk == _canonical_mode_key(MODE_SKYFIRE):
+            # Skyfire happens twice: after undead and after equalizer. If previous confirmed war was equalizer,
+            # then this skyfire is the end of the loop and the next is attack boost.
+            prev_mode = (wars_newest_first[0] or {}).get("mode") if wars_newest_first else ""
+            if _canonical_mode_key(prev_mode or "") == _canonical_mode_key(MODE_EQUAL):
+                return MODE_ATTACK
+            return MODE_VOLLEY
+        if lk == _canonical_mode_key(MODE_VOLLEY):
+            return MODE_BLOODY
+        if lk == _canonical_mode_key(MODE_BLOODY):
+            return MODE_EQUAL
+        if lk == _canonical_mode_key(MODE_EQUAL):
+            return MODE_SKYFIRE
+
+        # Fallback linear rotation.
+        linear = [MODE_ATTACK, MODE_RUSH, MODE_CLOVER, MODE_ANCIENT, MODE_UNDEAD, MODE_SKYFIRE, MODE_VOLLEY, MODE_BLOODY, MODE_EQUAL, MODE_SKYFIRE]
+        keys = [_canonical_mode_key(x) for x in linear]
+        lk0 = _canonical_mode_key(last_mode)
+        if lk0 in keys:
+            idx = keys.index(lk0)
+            return linear[(idx + 1) % len(linear)]
+        return MODE_ATTACK
+
+    def _predict_next_date_ts(wars_newest_first: list[dict]) -> int | None:
+        # Anchor on the newest confirmed war created_at_ts.
+        ts = [int((w or {}).get("created_at_ts") or 0) for w in wars_newest_first if int((w or {}).get("created_at_ts") or 0) > 0]
+        ts = sorted(ts, reverse=True)
+        if not ts:
+            return None
+        last_dt = datetime.utcfromtimestamp(ts[0])
+
+        # Estimate cadence from historical deltas.
+        deltas = []
+        for a, b in zip(ts, ts[1:]):
+            da = datetime.utcfromtimestamp(a)
+            db = datetime.utcfromtimestamp(b)
+            dd = int(round((da - db).total_seconds() / 86400.0))
+            if 1 <= dd <= 14:
+                deltas.append(dd)
+        if not deltas:
+            next_delta = 3
+        else:
+            last_delta = deltas[0]
+            if last_delta in (3, 4):
+                # many war schedules alternate 3/4 days
+                next_delta = 4 if last_delta == 3 else 3
+            else:
+                from collections import Counter
+                next_delta = Counter(deltas).most_common(1)[0][0]
+
+        nxt = (last_dt + timedelta(days=next_delta)).replace(hour=10, minute=0, second=0, microsecond=0)
+        return int(nxt.timestamp())
+
+    async def api_upcoming(_request):
+        """Return predicted next war (mode + approx date) based on confirmed war history."""
+        async with WAR_STORE_LOCK:
+            wars_all = await asyncio.to_thread(lambda: WAR_STORE.get_wars(True))
+        wars_confirmed = [w for w in wars_all if (w or {}).get("status") == "confirmed"]
+        wars_confirmed.sort(key=lambda w: int((w or {}).get("created_at_ts") or 0), reverse=True)
+        if not wars_confirmed:
+            return web.json_response({"upcoming": None})
+
+        last_mode = str((wars_confirmed[0] or {}).get("mode") or "").strip()
+        next_mode = _predict_next_mode(last_mode, wars_confirmed[1:])
+        next_ts = _predict_next_date_ts(wars_confirmed)
+        return web.json_response({
+            "upcoming": {
+                "predicted": True,
+                "mode": next_mode,
+                "date_ts": next_ts,
+                "date_iso": datetime.utcfromtimestamp(next_ts).strftime("%Y-%m-%d") if next_ts else "",
+                "based_on_mode": last_mode,
+            }
+        })
+
     app.router.add_get("/", index)
     app.router.add_get("/health", health)
     app.router.add_get("/api/wars", api_wars)
     app.router.add_get("/api/roster", api_roster)
     app.router.add_get("/api/meta", api_meta)
     app.router.add_get("/api/status", api_status)
+    app.router.add_get("/api/upcoming", api_upcoming)
 
     runner = web.AppRunner(app)
     await runner.setup()
@@ -677,7 +905,7 @@ async def start_keepalive_server():
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
 
-    logger.info("HTTP listening on :%s (/, /health, /api/wars, /api/roster, /api/meta, /api/status)", port)
+    logger.info("HTTP listening on :%s (/, /health, /api/wars, /api/roster, /api/meta, /api/status, /api/upcoming)", port)
 
 
 # ----------------------------

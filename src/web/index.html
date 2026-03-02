@@ -37,6 +37,9 @@
     /* Wars list: click whole row */
     .war-row { cursor: pointer; }
     .war-row:hover td { background: rgba(255,255,255,0.02); }
+    .upcoming-row td { background: rgba(255, 213, 79, 0.06) !important; }
+    .upcoming-row:hover td { background: rgba(255, 213, 79, 0.08) !important; }
+    .upcoming-row .pill { border-color: rgba(255, 213, 79, 0.35); }
 
     /* Mobile one-line summary for wars (Data + Wynik + Różnica + Przeciwnik + skrót trybu) */
     .war-line { display: none; align-items: center; gap: 10px; min-width: 0; }
@@ -573,16 +576,20 @@
 
 
   async function loadAll() {
-    const [warsResp, rosterResp] = await Promise.all([
+    const [warsResp, rosterResp, upcomingResp] = await Promise.all([
       fetch('/api/wars'),
-      fetch('/api/roster')
+      fetch('/api/roster'),
+      fetch('/api/upcoming')
     ]);
     const warsData = await warsResp.json();
     const rosterData = await rosterResp.json();
+    let upcomingData = null;
+    try { upcomingData = await upcomingResp.json(); } catch (_) { upcomingData = null; }
     const wars = Array.isArray(warsData) ? warsData : (warsData.wars || []);
     const roster = Array.isArray(rosterData) ? rosterData : (rosterData.roster || []);
     window.__ALL_WARS__ = wars;
     window.__ROSTER__ = roster;
+    window.__UPCOMING__ = (upcomingData && upcomingData.upcoming) ? upcomingData.upcoming : null;
 
     // Init scaled/raw checkbox from localStorage and re-render on change.
     try {
@@ -613,7 +620,16 @@
     const oppSel = document.getElementById('filterOpponent');
 
     const modes = uniqSorted(wars.map(w => (w.mode || '').trim() || '-'));
-    const opps = uniqSorted(wars.map(w => (w.opponent_alliance || '').trim() || '-'));
+    // Opponent filter uses backend-provided grouping so OCR variants collapse
+    // into one entry (e.g. SAMYELI vs SAMYELİ).
+    const oppMap = {};
+    for (const w of wars) {
+      const gid = (w.opponent_group || '').trim() || ((w.opponent_alliance || '').trim() || '-');
+      const lbl = (w.opponent_group_label || '').trim() || ((w.opponent_alliance || '').trim() || '-');
+      if (!oppMap[gid]) oppMap[gid] = lbl;
+    }
+    const opps = Object.entries(oppMap)
+      .sort((a,b)=> String(a[1]).localeCompare(String(b[1]), 'pl'));
 
     modeSel.innerHTML = '<option value="">Tryb: wszystkie</option>';
     for (const m of modes) {
@@ -624,10 +640,10 @@
     }
 
     oppSel.innerHTML = '<option value="">Przeciwnik: wszyscy</option>';
-    for (const o of opps) {
+    for (const [gid, lbl] of opps) {
       const opt = document.createElement('option');
-      opt.value = o;
-      opt.textContent = o;
+      opt.value = gid;
+      opt.textContent = lbl;
       oppSel.appendChild(opt);
     }
 
@@ -646,7 +662,7 @@
     let out = wars.slice();
     if (fRes) out = out.filter(w => String(w.result || '').trim() === fRes);
     if (fMode) out = out.filter(w => ((w.mode || '').trim() || '-') === fMode);
-    if (fOpp) out = out.filter(w => ((w.opponent_alliance || '').trim() || '-') === fOpp);
+    if (fOpp) out = out.filter(w => (((w.opponent_group || '').trim() || ((w.opponent_alliance || '').trim() || '-')) === fOpp));
 
     const keyDate = (w) => Number(w.created_at_ts || 0);
     const keyDiff = (w) => Number(w.diff || 0);
@@ -701,6 +717,45 @@
         toggleBtn.style.display = 'none';
       }
     }
+
+    // Show predicted upcoming war as the very first row (above the history list).
+    // We keep it independent of pagination so it's always visible.
+    const upcoming = window.__UPCOMING__;
+    try {
+      if (upcoming && upcoming.date_ts && upcoming.mode) {
+        const uDateText = escapeHtml(fmtDate(upcoming.date_ts || 0));
+        const uMode = (upcoming.mode || '').trim() || '-';
+        const uRes = 'Nadchodząca';
+        const utr = document.createElement('tr');
+        utr.className = 'upcoming-row';
+        utr.innerHTML = `
+          <td data-label="Data">
+            <div class="war-line">
+              <span class="w-date">${uDateText}</span>
+              <span class="pill warn">${escapeHtml(uRes)}</span>
+              <span class="w-diff muted">—</span>
+              <span class="w-opp muted">—</span>
+              <span class="w-mode-wrap" data-mode-full="${escapeHtml(uMode)}">
+                <button class="mode-icon-btn" type="button" aria-label="Tryb wojny">
+                  <img class="mode-icon" src="${escapeHtml(getModeIconSrc(uMode))}" alt="${escapeHtml(uMode)}"/>
+                </button>
+              </span>
+            </div>
+            <span class="w-date-only">${uDateText}</span>
+          </td>
+          <td data-label="Wynik"><span class="pill warn">${escapeHtml(uRes)}</span></td>
+          <td class="right" data-label="Różnica">—</td>
+          <td data-label="Przeciwnik">—</td>
+          <td data-label="Tryb">
+            <span class="mode-cell" title="${escapeHtml(uMode)}">
+              <img class="mode-icon mode-icon-inline" src="${escapeHtml(getModeIconSrc(uMode))}" alt="${escapeHtml(uMode)}"/>
+              <span class="mode-name">${escapeHtml(uMode)}</span>
+            </span>
+          </td>
+        `;
+        tbody.appendChild(utr);
+      }
+    } catch (_) {}
 
     for (const w of list) {
       const res = w.result || '';
