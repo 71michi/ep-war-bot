@@ -53,7 +53,7 @@ async def _send_temp(channel: discord.abc.Messageable, content: str, *, delete_a
 # Override via environment variables on Render:
 #   EPWAR_VERSION: e.g. v3.4.24
 #   EPWAR_BUILD:   e.g. build: 2026-03-01 22:05:00 CET
-APP_VERSION = env_str("EPWAR_VERSION", "v3.4.34")
+APP_VERSION = env_str("EPWAR_VERSION", "v3.4.35")
 _STARTED_AT = datetime.now().astimezone()
 BUILD_INFO = env_str(
     "EPWAR_BUILD",
@@ -4450,6 +4450,15 @@ def main():
                         'Discord login is rate-limited (HTTP 429 / CF 1015). Sleeping %ss before retry...',
                         backoff,
                     )
+                    # Close and reset the underlying aiohttp session to avoid "Unclosed client session" warnings.
+                    try:
+                        sess = getattr(client.http, "_HTTPClient__session", None)
+                        if sess is not None and not sess.closed:
+                            await sess.close()
+                        if hasattr(client.http, "_HTTPClient__session"):
+                            setattr(client.http, "_HTTPClient__session", None)
+                    except Exception:
+                        pass
                     await asyncio.sleep(backoff)
                     backoff = min(backoff * 2, max_backoff)
                     continue
