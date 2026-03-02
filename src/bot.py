@@ -53,7 +53,7 @@ async def _send_temp(channel: discord.abc.Messageable, content: str, *, delete_a
 # Override via environment variables on Render:
 #   EPWAR_VERSION: e.g. v3.4.24
 #   EPWAR_BUILD:   e.g. build: 2026-03-01 22:05:00 CET
-APP_VERSION = env_str("EPWAR_VERSION", "v3.4.35")
+APP_VERSION = env_str("EPWAR_VERSION", "v3.4.37")
 _STARTED_AT = datetime.now().astimezone()
 BUILD_INFO = env_str(
     "EPWAR_BUILD",
@@ -289,13 +289,23 @@ async def _restore_progress_from_discord(client: discord.Client) -> None:
     if ch is None:
         return
 
+    global LAST_RESTORE_OK, LAST_RESTORE_ERROR, LAST_RESTORE_TS
+    global LAST_RESTORE_WARS_OK, LAST_RESTORE_ROSTER_OK, LAST_RESTORE_SOURCE
+
     restored_any = False
+    restored_wars = False
+    restored_roster = False
     try:
-        restored_any |= await restore_snapshot(ch, TAG_WARS, WAR_STORE_PATH)
-        restored_any |= await restore_snapshot(ch, TAG_ROSTER_OVERRIDES, ROSTER_OVERRIDES_PATH)
-        restored_any |= await restore_snapshot(ch, TAG_ROSTER_REMOVED, ROSTER_REMOVED_PATH)
+        restored_wars = await restore_snapshot(ch, TAG_WARS, WAR_STORE_PATH)
+        restored_roster_over = await restore_snapshot(ch, TAG_ROSTER_OVERRIDES, ROSTER_OVERRIDES_PATH)
+        restored_roster_rem = await restore_snapshot(ch, TAG_ROSTER_REMOVED, ROSTER_REMOVED_PATH)
+        restored_roster = bool(restored_roster_over or restored_roster_rem)
+        restored_any = bool(restored_wars or restored_roster)
     except Exception:
         logger.exception("Restore from Discord failed")
+        LAST_RESTORE_OK = False
+        LAST_RESTORE_ERROR = "restore_exception"
+        LAST_RESTORE_TS = int(time.time())
         return
 
     if restored_any:
@@ -309,6 +319,14 @@ async def _restore_progress_from_discord(client: discord.Client) -> None:
         except Exception:
             pass
         logger.info("Restored progress from Discord snapshots")
+
+    # Update diagnostics flags regardless of whether anything was restored.
+    LAST_RESTORE_WARS_OK = bool(restored_wars)
+    LAST_RESTORE_ROSTER_OK = bool(restored_roster)
+    LAST_RESTORE_OK = bool(restored_any)
+    LAST_RESTORE_ERROR = "" if restored_any else "no_snapshots_found"
+    LAST_RESTORE_TS = int(time.time())
+    LAST_RESTORE_SOURCE = "pinned_or_recent"
 
 
 async def _persist_progress_to_discord(client: discord.Client, what: str = "all") -> None:
@@ -400,6 +418,9 @@ DISCORD_READY = False
 LAST_RESTORE_OK = False
 LAST_RESTORE_ERROR = ""
 LAST_RESTORE_TS = 0
+LAST_RESTORE_WARS_OK = False
+LAST_RESTORE_ROSTER_OK = False
+LAST_RESTORE_SOURCE = ""
 
 
 async def start_keepalive_server():
@@ -627,13 +648,19 @@ async def start_keepalive_server():
     async def api_status(_request):
         # Helps debugging empty dashboards when Discord login is rate-limited.
         async with WAR_STORE_LOCK:
-            war_count = await asyncio.to_thread(lambda: len(WAR_STORE.get_wars(True)))
+            wars_all = await asyncio.to_thread(lambda: WAR_STORE.get_wars(True))
+        war_count_total = len(wars_all)
+        war_count_confirmed = sum(1 for w in wars_all if (w or {}).get("status") == "confirmed")
         return web.json_response({
             "discord_ready": bool(DISCORD_READY),
             "restore_ok": bool(LAST_RESTORE_OK),
             "restore_error": LAST_RESTORE_ERROR,
             "restore_ts": int(LAST_RESTORE_TS or 0),
-            "war_count_local": int(war_count),
+            "restore_wars_ok": bool(LAST_RESTORE_WARS_OK),
+            "restore_roster_ok": bool(LAST_RESTORE_ROSTER_OK),
+            "restore_source": str(LAST_RESTORE_SOURCE or ""),
+            "war_count_total": int(war_count_total),
+            "war_count_confirmed": int(war_count_confirmed),
         })
 
     app.router.add_get("/", index)
@@ -2344,6 +2371,43 @@ def _parse_removeroster(text: str) -> List[str]:
     return out
 
 
+def _parse_roster_index_list(rest: str, max_n: int) -> List[int]:
+    """Parse index list like: "1, 3, 5, 6" or "1-3,8".
+
+    Returns 1-based indices.
+    """
+    if not rest:
+        return []
+    s = rest.strip()
+    if not s:
+        return []
+
+    # Accept only digits, spaces, commas and dashes.
+    if not re.fullmatch(r"[0-9,\s\-]+", s):
+        return []
+
+    indices: List[int] = []
+    tokens = [t.strip() for t in re.split(r"[,\s]+", s) if t.strip()]
+    for tok in tokens:
+        if "-" in tok:
+            a, b = tok.split("-", 1)
+            if a.isdigit() and b.isdigit():
+                ia = int(a)
+                ib = int(b)
+                if ia <= 0 or ib <= 0:
+                    continue
+                lo, hi = (ia, ib) if ia <= ib else (ib, ia)
+                for i in range(lo, hi + 1):
+                    if 1 <= i <= max_n and i not in indices:
+                        indices.append(i)
+            continue
+        if tok.isdigit():
+            i = int(tok)
+            if 1 <= i <= max_n and i not in indices:
+                indices.append(i)
+    return indices
+
+
 async def try_apply_removeroster_command(
     discord_client: discord.Client,
     message: discord.Message,
@@ -2908,7 +2972,18 @@ async def try_apply_removeroster_channel_command(
     if message.reference and message.reference.message_id:
         return False
 
-    names = _parse_removeroster(message.content or "")
+    # Support removal by roster indices: REMOVEROSTER 1, 3, 5
+    text = (message.content or "").strip()
+    if not re.match(r"^REMOVEROSTER\b", text, flags=re.IGNORECASE):
+        return False
+    rest = text[len("REMOVEROSTER"):].strip()
+
+    roster_sorted = sorted(load_roster(), key=lambda x: (x or "").casefold())
+    idxs = _parse_roster_index_list(rest, max_n=len(roster_sorted))
+    if idxs:
+        names = [roster_sorted[i - 1] for i in idxs if 1 <= i <= len(roster_sorted)]
+    else:
+        names = _parse_removeroster(text)
     if not names:
         return False
 
@@ -2955,8 +3030,14 @@ async def try_apply_currentroster_channel_command(
     removed = _load_roster_file(ROSTER_REMOVED_PATH)
     roster = load_roster()
 
-    header = f"📋 Aktualny roster ({len(roster)}): base={len(base)}, overrides={len(overrides)}, removed={len(removed)}"
-    body = "\n".join(roster) if roster else "(pusto)"
+    # Display roster alphabetically with stable numbering.
+    roster_sorted = sorted(roster, key=lambda x: (x or "").casefold())
+
+    header = (
+        f"📋 Aktualny roster ({len(roster_sorted)}): base={len(base)}, overrides={len(overrides)}, removed={len(removed)}\n"
+        "ℹ️ Możesz usuwać wielu graczy naraz: `REMOVEROSTER 1, 3, 5, 6` (numery z tej listy)."
+    )
+    body = "\n".join([f"{i}. {name}" for i, name in enumerate(roster_sorted, start=1)]) if roster_sorted else "(pusto)"
     out = header + "\n```\n" + body + "\n```"
 
     try:
@@ -3881,17 +3962,11 @@ def main():
 
     @client.event
     async def on_ready():
-        global DISCORD_READY, LAST_RESTORE_OK, LAST_RESTORE_ERROR, LAST_RESTORE_TS
+        global DISCORD_READY
         DISCORD_READY = True
         try:
             await _restore_progress_from_discord(client)
-            LAST_RESTORE_OK = True
-            LAST_RESTORE_ERROR = ""
-            LAST_RESTORE_TS = int(time.time())
         except Exception as e:
-            LAST_RESTORE_OK = False
-            LAST_RESTORE_ERROR = repr(e)
-            LAST_RESTORE_TS = int(time.time())
             logger.exception("Failed to restore progress from Discord")
         asyncio.create_task(start_keepalive_server())
         logger.info("Zalogowano jako: %s | obserwuję kanał: %s", client.user, WATCH_CHANNEL_ID)

@@ -1,3 +1,4 @@
+import asyncio
 import gzip
 import io
 import logging
@@ -236,9 +237,40 @@ async def restore_snapshot(
                 wanted_stem,
                 prefix,
             )
-        else:
-            logger.info("No pinned snapshot for %s", prefix)
-            return False
+
+    # Last-resort fallback: the storage message might not be pinned.
+    # Try scanning recent history for the newest matching message.
+    if msg is None:
+        try:
+            wanted_stem = _normalize_attachment_stem(os.path.basename(dest_path))
+            async for m in channel.history(limit=100):
+                if not m.attachments:
+                    continue
+                att0 = m.attachments[0]
+                stem = _normalize_attachment_stem(att0.filename or "")
+                if (m.content or "").startswith(prefix) or stem == wanted_stem:
+                    msg = m
+                    logger.warning("Restoring %s from recent history (not pinned)", prefix)
+                    break
+        except Exception:
+            pass
+
+    if msg is None:
+        logger.info("No snapshot for %s (pinned or recent)", prefix)
+        return False
+
+    # UX guard: if WARSTORE exists but is not pinned, warn the operator.
+    # This prevents "0 wars after restart" situations.
+    try:
+        if prefix == TAG_WARS and not getattr(msg, "pinned", False):
+            await channel.send(
+                "⚠️ **WARSTORE nie jest przypięty.** Po restarcie bota lista wojen może być pusta. "
+                "Przypnij wiadomość z `[WARSTORE]` i załącznikiem `wars_store.json` w kanale #warbot-storage.",
+                delete_after=15,
+            )
+    except Exception:
+        # Best-effort only.
+        pass
 
     att = msg.attachments[0]
     try:
