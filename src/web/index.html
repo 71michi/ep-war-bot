@@ -797,7 +797,7 @@
         const shownPts = useScaled ? ((p.points !== undefined) ? p.points : p.points_raw) : ((p.points_raw !== undefined) ? p.points_raw : p.points);
         const ptsNum = Number(shownPts || 0);
         const scaled = useScaled && !!p.points_scaled;
-        const pts = escapeHtml((shownPts ?? '') + (scaled ? '*' : ''));
+        const pts = escapeHtml((shownPts ?? '') );
 
         return `
           <tr class="${rowClass}" data-rank="${Number.isFinite(rankNum) ? rankNum : ''}" data-pts="${Number.isFinite(ptsNum) ? ptsNum : ''}" data-name="${escapeHtml(p.name ?? '')}">
@@ -827,7 +827,7 @@
         const shownPts = useScaled ? ((p.points !== undefined) ? p.points : p.points_raw) : ((p.points_raw !== undefined) ? p.points_raw : p.points);
         const ptsNum = Number(shownPts || 0);
         const scaled = useScaled && !!p.points_scaled;
-        const pts = escapeHtml((shownPts ?? '') + (scaled ? '*' : ''));
+        const pts = escapeHtml((shownPts ?? '') );
 
         return `
           <div class="player-line ${rowClass}" data-rank="${Number.isFinite(rankNum) ? rankNum : ''}" data-pts="${Number.isFinite(ptsNum) ? ptsNum : ''}" data-name="${escapeHtml(p.name ?? '')}">
@@ -1189,7 +1189,7 @@
           const isObj = (v && typeof v === 'object');
           const eff = isObj ? v.v : v;
           const showStar = isObj && v.scaled && useScaled;
-          chip.textContent = (eff === null || eff === undefined) ? '-' : fmtPts(eff) + (showStar ? '*' : '');
+          chip.textContent = (eff === null || eff === undefined) ? '-' : fmtPts(eff);
 
           // For wars where points were scaled (X!=30):
           // - when showing scaled points: highlight + star
