@@ -53,7 +53,7 @@ async def _send_temp(channel: discord.abc.Messageable, content: str, *, delete_a
 # Override via environment variables on Render:
 #   EPWAR_VERSION: e.g. v3.4.24
 #   EPWAR_BUILD:   e.g. build: 2026-03-01 22:05:00 CET
-APP_VERSION = env_str("EPWAR_VERSION", "v3.4.33")
+APP_VERSION = env_str("EPWAR_VERSION", "v3.4.34")
 _STARTED_AT = datetime.now().astimezone()
 BUILD_INFO = env_str(
     "EPWAR_BUILD",
@@ -395,6 +395,12 @@ def _attach_per_trace_logger(trace_id: str) -> Tuple[logging.Handler, io.StringI
 # ----------------------------
 _keepalive_started = False
 
+# Web/UI diagnostics: expose whether Discord is connected and whether storage restore succeeded.
+DISCORD_READY = False
+LAST_RESTORE_OK = False
+LAST_RESTORE_ERROR = ""
+LAST_RESTORE_TS = 0
+
 
 async def start_keepalive_server():
     """HTTP server used for /health and a simple dashboard.
@@ -618,11 +624,24 @@ async def start_keepalive_server():
             "started_at": int(_STARTED_AT.timestamp()),
         })
 
+    async def api_status(_request):
+        # Helps debugging empty dashboards when Discord login is rate-limited.
+        async with WAR_STORE_LOCK:
+            war_count = await asyncio.to_thread(lambda: len(WAR_STORE.get_wars(True)))
+        return web.json_response({
+            "discord_ready": bool(DISCORD_READY),
+            "restore_ok": bool(LAST_RESTORE_OK),
+            "restore_error": LAST_RESTORE_ERROR,
+            "restore_ts": int(LAST_RESTORE_TS or 0),
+            "war_count_local": int(war_count),
+        })
+
     app.router.add_get("/", index)
     app.router.add_get("/health", health)
     app.router.add_get("/api/wars", api_wars)
     app.router.add_get("/api/roster", api_roster)
     app.router.add_get("/api/meta", api_meta)
+    app.router.add_get("/api/status", api_status)
 
     runner = web.AppRunner(app)
     await runner.setup()
@@ -631,7 +650,7 @@ async def start_keepalive_server():
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
 
-    logger.info("HTTP listening on :%s (/, /health, /api/wars, /api/roster, /api/meta)", port)
+    logger.info("HTTP listening on :%s (/, /health, /api/wars, /api/roster, /api/meta, /api/status)", port)
 
 
 # ----------------------------
@@ -3862,9 +3881,17 @@ def main():
 
     @client.event
     async def on_ready():
+        global DISCORD_READY, LAST_RESTORE_OK, LAST_RESTORE_ERROR, LAST_RESTORE_TS
+        DISCORD_READY = True
         try:
             await _restore_progress_from_discord(client)
-        except Exception:
+            LAST_RESTORE_OK = True
+            LAST_RESTORE_ERROR = ""
+            LAST_RESTORE_TS = int(time.time())
+        except Exception as e:
+            LAST_RESTORE_OK = False
+            LAST_RESTORE_ERROR = repr(e)
+            LAST_RESTORE_TS = int(time.time())
             logger.exception("Failed to restore progress from Discord")
         asyncio.create_task(start_keepalive_server())
         logger.info("Zalogowano jako: %s | obserwuję kanał: %s", client.user, WATCH_CHANNEL_ID)
