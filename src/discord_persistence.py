@@ -94,6 +94,8 @@ async def upload_snapshot(
     src_path: str,
     *,
     max_bytes: int = 7000000,
+    # Backwards-compatible alias (older bot.py used max_upload_bytes).
+    max_upload_bytes: int | None = None,
     pin: bool = True,
     keep_backups: int = 2,
 ) -> Optional[discord.Message]:
@@ -107,6 +109,13 @@ async def upload_snapshot(
     if size <= 0:
         logger.warning("Skip upload %s: empty file %s", tag, src_path)
         return None
+
+    if max_upload_bytes is not None:
+        try:
+            max_bytes = int(max_upload_bytes)
+        except Exception:
+            pass
+
     if size > max_bytes:
         logger.error("Skip upload %s: %s is too large (%d > %d)", tag, src_path, size, max_bytes)
         return None

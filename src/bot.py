@@ -2811,10 +2811,10 @@ def _parse_insert(text: str) -> Optional[Dict[str, object]]:
     if not text:
         return None
     t = text.strip()
-    if not re.match(r"^INSERT", t, flags=re.IGNORECASE):
+    if not re.match(r"^INSERT\b", t, flags=re.IGNORECASE):
         return None
 
-    rest = re.sub(r"^INSERT\s*[:\-]?\s*", "", t, flags=re.IGNORECASE).strip()
+    rest = re.sub(r"^INSERT\b\s*[:\-]?\s*", "", t, flags=re.IGNORECASE).strip()
     if not rest:
         return None
 
