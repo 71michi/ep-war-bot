@@ -794,9 +794,11 @@
         const rankNum = r ? Number(r) : NaN;
         const rank = r ? String(r).padStart(2,'0') : '--';
         const name = escapeHtml(p.name ?? '');
-        const shownPts = useScaled ? ((p.points !== undefined) ? p.points : p.points_raw) : ((p.points_raw !== undefined) ? p.points_raw : p.points);
+        const shownPts = useScaled
+          ? ((p.points_scaled_value !== undefined) ? p.points_scaled_value : ((p.points !== undefined) ? p.points : p.points_raw))
+          : ((p.points_raw !== undefined) ? p.points_raw : p.points);
         const ptsNum = Number(shownPts || 0);
-        const scaled = useScaled && !!p.points_scaled;
+        const scaled = useScaled && !!p.points_scaled && (p.points_scaled_value !== undefined);
         const pts = escapeHtml((shownPts ?? '') );
 
         return `
@@ -824,9 +826,11 @@
         const rankNum = r ? Number(r) : NaN;
         const rank = r ? String(r).padStart(2,'0') : '--';
         const name = escapeHtml(p.name ?? '');
-        const shownPts = useScaled ? ((p.points !== undefined) ? p.points : p.points_raw) : ((p.points_raw !== undefined) ? p.points_raw : p.points);
+        const shownPts = useScaled
+          ? ((p.points_scaled_value !== undefined) ? p.points_scaled_value : ((p.points !== undefined) ? p.points : p.points_raw))
+          : ((p.points_raw !== undefined) ? p.points_raw : p.points);
         const ptsNum = Number(shownPts || 0);
-        const scaled = useScaled && !!p.points_scaled;
+        const scaled = useScaled && !!p.points_scaled && (p.points_scaled_value !== undefined);
         const pts = escapeHtml((shownPts ?? '') );
 
         return `
@@ -1100,12 +1104,12 @@
             if (!s) continue;
             if (map.has(name)) {
               const pobj = map.get(name) || {};
-              const ptsEff = Number((pobj.points !== undefined) ? pobj.points : 0);
-              const raw = Number((pobj.points_raw !== undefined) ? pobj.points_raw : ptsEff);
-              const scaled = !!pobj.points_scaled;
-              const ptsUsed = useScaled ? ptsEff : raw;
+              const raw = Number((pobj.points_raw !== undefined) ? pobj.points_raw : ((pobj.points !== undefined) ? pobj.points : 0));
+              const eff = Number((pobj.points_scaled_value !== undefined) ? pobj.points_scaled_value : raw);
+              const scaled = !!pobj.points_scaled && (pobj.points_scaled_value !== undefined);
+              const ptsUsed = useScaled ? eff : raw;
               const participants = (pobj.participants !== undefined && pobj.participants !== null) ? Number(pobj.participants) : null;
-              if (wantPoints && s.points) s.points[i] = { v: ptsUsed, raw, eff: ptsEff, scaled, participants, warId: (w.war_id || '') };
+              if (wantPoints && s.points) s.points[i] = { v: ptsUsed, raw, eff, scaled, participants, warId: (w.war_id || '') };
               s.sum += ptsUsed;
               s.count += 1;
             }

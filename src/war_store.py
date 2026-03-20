@@ -1,6 +1,8 @@
 import json
 import os
 import time
+import logging
+import hashlib
 from typing import Any, Dict, List, Optional
 
 
@@ -9,6 +11,39 @@ DEFAULT_STORE: Dict[str, Any] = {
     "wars": {},  # war_id -> record
     "order": [],  # list[war_id] in insertion order
 }
+
+
+logger = logging.getLogger("warbot.store")
+
+
+def _points_checksum(record: Dict[str, Any]) -> str:
+    """Stable checksum of a war's *raw* player points.
+
+    Used to prevent accidental historical corruption (e.g. scaled points being written back into the store).
+    """
+    players = record.get("players")
+    if not isinstance(players, list):
+        return ""
+    norm = []
+    for p in players:
+        if not isinstance(p, dict):
+            continue
+        pts = p.get("points_raw")
+        if pts is None:
+            pts = p.get("points")
+        try:
+            pts_i = int(pts)
+        except Exception:
+            pts_i = 0
+        try:
+            rank_i = int(p.get("rank") or 0)
+        except Exception:
+            rank_i = 0
+        name = str(p.get("name") or p.get("name_display") or "").strip()
+        norm.append((rank_i, name, pts_i))
+    norm.sort(key=lambda x: (x[0], x[1]))
+    blob = json.dumps(norm, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(blob).hexdigest()
 
 
 def _now_ts() -> int:
@@ -93,6 +128,28 @@ class WarStore:
         record = dict(record)
         record.setdefault("war_id", war_id)
         record.setdefault("updated_at_ts", _now_ts())
+
+
+        prev_rec = wars.get(war_id) if existed else None
+
+        # Historical corruption guard: do not allow accidental point changes in CONFIRMED wars.
+        # Allow override via env ALLOW_CONFIRMED_WAR_MUTATION=1
+        if existed and isinstance(prev_rec, dict):
+            try:
+                prev_status = str(prev_rec.get("status") or "").lower()
+                new_status = str(record.get("status") or "").lower() or prev_status
+                if prev_status == "confirmed" and new_status == "confirmed":
+                    if os.getenv("ALLOW_CONFIRMED_WAR_MUTATION", "0") != "1":
+                        prev_sum = _points_checksum(prev_rec)
+                        new_sum = _points_checksum(record)
+                        if prev_sum and new_sum and prev_sum != new_sum:
+                            logger.error(
+                                "Refusing to modify CONFIRMED war %s (points checksum changed). Set ALLOW_CONFIRMED_WAR_MUTATION=1 to override.",
+                                war_id,
+                            )
+                            return True
+            except Exception:
+                pass
 
         wars[war_id] = record
         if not existed:

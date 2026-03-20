@@ -53,7 +53,7 @@ async def _send_temp(channel: discord.abc.Messageable, content: str, *, delete_a
 # Override via environment variables on Render:
 #   EPWAR_VERSION: e.g. v3.4.24
 #   EPWAR_BUILD:   e.g. build: 2026-03-01 22:05:00 CET
-APP_VERSION = env_str("EPWAR_VERSION", "v3.4.43")
+APP_VERSION = env_str("EPWAR_VERSION", "v3.4.45")
 _STARTED_AT = datetime.now().astimezone()
 BUILD_INFO = env_str(
     "EPWAR_BUILD",
@@ -555,6 +555,7 @@ async def start_keepalive_server():
                         "raw": "(opuścił sojusz w trakcie wojny?)",
                         "points": int(unassigned_total),
                         "points_raw": int(unassigned_total),
+                        "points_scaled_value": int(unassigned_total),
                         "status": "unassigned",
                     })
 
@@ -571,23 +572,11 @@ async def start_keepalive_server():
             # where X is the number of participating ranks in this war.
             #
             # We DO NOT mutate stored records on disk. This is computed on-the-fly for API.
-            try:
-                players_for_participants = [pp for pp in players if isinstance(pp, dict) and str(pp.get('status') or '').lower() != 'unassigned']
-                ranks = []
-                for p in players_for_participants:
-                    if isinstance(p, dict):
-                        try:
-                            r = int(p.get("rank") or 0)
-                        except Exception:
-                            r = 0
-                        if r > 0:
-                            ranks.append(r)
-                participants = int(max(ranks) if ranks else len(players_for_participants))
-            except Exception:
-                participants = int(len(players))
-
-            # If the war record has an explicit participants override (e.g. LISTWAR 27
-            # or reply with "27" after LISTWAR), use it.
+            # Participants (X) for XvX scaling.
+            # IMPORTANT: We only scale wars when X is explicitly known.
+            # Auto-inferring X from the current player list is unreliable (players may leave mid-war,
+            # ranks may be missing after edits, etc.) and can cause historical wars to appear
+            # re-scaled as new wars are added.
             try:
                 p_ovr = int(w.get("participants_override") or 0)
             except Exception:
@@ -597,18 +586,11 @@ async def start_keepalive_server():
             except Exception:
                 p_decl = 0
 
+            participants = 30
             if 0 < p_ovr <= 60:
                 participants = int(p_ovr)
             elif 0 < p_decl <= 60:
                 participants = int(p_decl)
-
-            # sanity clamp
-            if participants <= 0:
-                participants = int(len(players))
-            if participants <= 0:
-                participants = 30
-            if participants > 60:
-                participants = int(len(players)) or 30
 
             is_scaled_war = bool(participants != 30)
             w_out["participants"] = int(participants)
@@ -629,27 +611,32 @@ async def start_keepalive_server():
                         raw_pts = 0
                     p["points_raw"] = int(raw_pts)
                     p["points"] = int(raw_pts)
+                    p["points_scaled_value"] = int(raw_pts)
                     p["points_scaled"] = False
                     p["points_factor"] = 1.0
                     p["participants"] = int(participants)
                     p["outside_current_roster"] = None
                     continue
 
-                # Keep raw points, and (optionally) replace displayed points with adjusted points.
+                # Points handling:
+                # - `points` remains the RAW points from the war (immutable for history)
+                # - `points_scaled_value` is computed on-the-fly when X is explicitly known
+                # This prevents accidental cascading re-scaling.
                 try:
-                    raw_pts = int(p.get("points") or 0)
+                    raw_pts = int(p.get("points_raw") if p.get("points_raw") is not None else (p.get("points") or 0))
                 except Exception:
                     raw_pts = 0
                 p["points_raw"] = int(raw_pts)
+                p["points"] = int(raw_pts)
+
                 if is_scaled_war:
                     adj = (float(raw_pts) * float(participants)) / 30.0
-                    # Round to full points for display/statistics consistency.
-                    # (User can still see raw points in UI note/tooltip.)
-                    p["points"] = int(round(adj))
+                    p["points_scaled_value"] = int(round(adj))
                     p["points_scaled"] = True
                     p["points_factor"] = float(participants) / 30.0
                     p["participants"] = int(participants)
                 else:
+                    p["points_scaled_value"] = int(raw_pts)
                     p["points_scaled"] = False
                     p["points_factor"] = 1.0
                     p["participants"] = 30
@@ -846,6 +833,18 @@ async def start_keepalive_server():
             return None
 
         lk = _canonical_mode_key(last)
+        # Wars happen in pairs: each mode repeats twice before moving to the next one.
+        # If the newest confirmed war is the first of its pair, predict the same mode again.
+        consecutive = 1
+        for w in wars_newest_first:
+            mk = _canonical_mode_key((w or {}).get("mode") or "")
+            if mk == lk:
+                consecutive += 1
+            else:
+                break
+        if consecutive < 2:
+            return last
+
         if lk == _canonical_mode_key(MODE_ATTACK):
             return MODE_RUSH
         if lk == _canonical_mode_key(MODE_RUSH):
@@ -2893,8 +2892,23 @@ async def try_apply_assignunassigned_command(
     if not isinstance(players, list):
         players = []
 
+    # Normalize: remove any legacy synthetic "unassigned" rows from stored players.
+    # We represent missing points solely via `unassigned_points` in the record,
+    # and the Web/API renders a synthetic row on-the-fly.
+    def _is_unassigned_row(pp: dict) -> bool:
+        try:
+            if str(pp.get("player_id") or "") == "__unassigned__":
+                return True
+            if str(pp.get("status") or "").lower() == "unassigned":
+                return True
+            nm = str(pp.get("name") or "")
+            return nm.startswith("⚠️") and ("Niewidoczny" in nm or "niewidoczny" in nm)
+        except Exception:
+            return False
+
+    players = [p for p in list(players) if not (isinstance(p, dict) and _is_unassigned_row(p))]
+
     # Append a synthetic player row (rank=None). We do not guess rank.
-    players = list(players)
     players.append({
         "rank": None,
         "name": name,
