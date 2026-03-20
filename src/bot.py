@@ -2801,6 +2801,39 @@ def _parse_assignunassigned(text: str) -> Optional[Dict[str, object]]:
     return {"name": name, "points": pts}
 
 
+
+
+def _parse_insert(text: str) -> Optional[Dict[str, object]]:
+    """Parse: INSERT <nick> <points>.
+
+    Example: "INSERT Dany Boy 308"
+    """
+    if not text:
+        return None
+    t = text.strip()
+    if not re.match(r"^INSERT", t, flags=re.IGNORECASE):
+        return None
+
+    rest = re.sub(r"^INSERT\s*[:\-]?\s*", "", t, flags=re.IGNORECASE).strip()
+    if not rest:
+        return None
+
+    parts = [p.strip() for p in re.split(r"\s+", rest) if p.strip()]
+    if len(parts) < 2:
+        return None
+
+    try:
+        pts = int(parts[-1])
+    except Exception:
+        return None
+
+    name = " ".join(parts[:-1]).strip()
+    if not name or pts <= 0:
+        return None
+
+    return {"name": name, "points": pts}
+
+
 async def try_apply_assignunassigned_command(
     discord_client: discord.Client,
     message: discord.Message,
@@ -2846,6 +2879,216 @@ async def try_apply_assignunassigned_command(
         except Exception:
             pass
         return True
+
+
+async def try_apply_insert_command(
+    discord_client: discord.Client,
+    message: discord.Message,
+) -> bool:
+    """Reply command: INSERT <nick> <points>.
+
+    Inserts a missing player into the ranking list based on points (descending),
+    shifts ranks of other players, and reduces `unassigned_points` accordingly.
+
+    Works only as a reply to the bot's war post.
+    """
+    if not (message.reference and message.reference.message_id):
+        return False
+
+    parsed = _parse_insert(message.content or "")
+    if not parsed:
+        return False
+
+    # Fetch referenced message (the bot war post)
+    ref_msg: Optional[discord.Message] = None
+    if isinstance(message.reference.resolved, discord.Message):
+        ref_msg = message.reference.resolved
+    else:
+        try:
+            ref_msg = await message.channel.fetch_message(message.reference.message_id)
+        except Exception:
+            ref_msg = None
+    if ref_msg is None:
+        return False
+
+    # Resolve war_id
+    post = WAR_POSTS.get(ref_msg.id)
+    war_id = post.war_id if post else _extract_war_id_from_text(ref_msg.content or "")
+    if not war_id:
+        try:
+            await message.channel.send("⚠️ Nie mogę znaleźć ID wojny w tej wiadomości.")
+        except Exception:
+            pass
+        return True
+
+    async with WAR_STORE_LOCK:
+        rec = await asyncio.to_thread(WAR_STORE.get_war, war_id)
+    if not isinstance(rec, dict):
+        try:
+            await message.channel.send(f"⚠️ Nie znaleziono wojny w storage: `{war_id}`")
+        except Exception:
+            pass
+        return True
+
+    name = str(parsed["name"]).strip()
+    pts = int(parsed["points"])  # >0
+
+    unassigned = int(rec.get("unassigned_points") or 0)
+    if unassigned <= 0:
+        try:
+            await message.channel.send("ℹ️ W tej wojnie nie ma brakujących punktów do przypisania.")
+        except Exception:
+            pass
+        return True
+
+    if pts > unassigned:
+        try:
+            await message.channel.send(f"⚠️ Podano {pts} pkt, ale brakujące punkty wynoszą tylko {unassigned}.")
+        except Exception:
+            pass
+        return True    # Ensure we have a post object to re-render
+    if post is None:
+        try:
+            await message.channel.send("⚠️ Ta wiadomość nie jest aktywnym LISTWAR (brak kontekstu w pamięci). Zrób LISTWAR ponownie.")
+        except Exception:
+            pass
+        return True
+
+    # Prevent duplicates by canonical key
+    try:
+        name_key = canonical_key(name)
+    except Exception:
+        name_key = name.casefold()
+
+    for ln in post.lines_by_rank.values():
+        try:
+            existing = str(getattr(ln, 'name_display', '') or getattr(ln, 'name_raw', '') or '').strip()
+            if canonical_key(existing) == name_key:
+                try:
+                    await message.channel.send("⚠️ Ten gracz już jest na liście. Użyj poprawki po numerze (np. `2 Nick 308`) jeśli chcesz edytować.")
+                except Exception:
+                    pass
+                return True
+        except Exception:
+            continue
+
+    # Determine insertion rank based on points (descending). Place after the last equal-score group.
+    existing_ranks = sorted(post.lines_by_rank.keys())
+    ordered = [post.lines_by_rank[r] for r in existing_ranks]
+
+    insert_rank = 1
+    for i, ln in enumerate(ordered, start=1):
+        try:
+            ln_pts = int(getattr(ln, 'points', 0) or 0)
+        except Exception:
+            ln_pts = 0
+        if ln_pts < pts:
+            insert_rank = i
+            break
+        if ln_pts == pts:
+            # insert after equals; keep moving
+            insert_rank = i + 1
+        else:
+            insert_rank = i + 1
+
+    if insert_rank < 1:
+        insert_rank = 1
+    if insert_rank > len(ordered) + 1:
+        insert_rank = len(ordered) + 1
+
+    # Shift ranks and insert
+    new_lines: Dict[int, WarLine] = {}
+    for r in sorted(post.lines_by_rank.keys()):
+        ln = post.lines_by_rank[r]
+        if r < insert_rank:
+            new_lines[r] = ln
+        else:
+            new_lines[r + 1] = ln
+
+    new_ln = WarLine(rank=insert_rank, name_raw=name, name_display=name, points=pts)
+    new_lines[insert_rank] = new_ln
+
+    # Rebuild ranks inside WarLine objects
+    for r, ln in new_lines.items():
+        try:
+            ln.rank = r
+        except Exception:
+            pass
+
+    post.lines_by_rank = dict(sorted(new_lines.items(), key=lambda kv: kv[0]))
+    post.expected_max_rank = max(post.expected_max_rank, max(post.lines_by_rank.keys(), default=0))
+
+    # Reduce unassigned and update post
+    post.unassigned_points = max(0, int(post.unassigned_points or 0) - pts)
+
+    # Apply roster mapping again
+    roster = load_roster()
+    apply_roster_mapping(post.lines_by_rank, roster)
+
+    # Update storage record
+    rec["unassigned_points"] = max(0, unassigned - pts)
+
+    # Store participants override if present in post
+    if post.participants_override is not None:
+        rec["participants_override"] = post.participants_override
+
+    # Persist players back as raw points
+    players_list = []
+    for r in sorted(post.lines_by_rank.keys()):
+        ln = post.lines_by_rank[r]
+        players_list.append({
+            "rank": r,
+            "name": ln.name_display,
+            "points": int(getattr(ln, 'points', 0) or 0),
+        })
+    rec["players"] = players_list
+
+    # Recompute sums and match flags
+    sum_players = sum(int(p.get('points') or 0) for p in players_list)
+    rec["players_points_sum_list"] = sum_players
+    our_score = int(rec.get("our_score") or 0)
+    eff = sum_players + int(rec.get("unassigned_points") or 0)
+    rec["players_points_sum_effective"] = eff
+    rec["players_points_sum_matches_alliance"] = bool(our_score and eff == our_score)
+
+    async with WAR_STORE_LOCK:
+        await asyncio.to_thread(WAR_STORE.upsert_war, war_id, rec)
+
+    # Persist snapshots
+    try:
+        await persist_war_store_snapshot(discord_client)
+    except Exception:
+        pass
+
+    # Re-render referenced war post
+    try:
+        new_content = render_post(post)
+        parts = chunk_message(new_content)
+        if len(parts) != 1:
+            new_content = parts[0]
+        await ref_msg.edit(content=new_content)
+    except Exception:
+        logger.exception("INSERT: failed to edit war post %s", ref_msg.id)
+
+    # Confirm and delete command
+    try:
+        await ref_msg.add_reaction("➕")
+    except Exception:
+        pass
+    try:
+        await message.delete()
+    except Exception:
+        pass
+
+    try:
+        await message.channel.send(
+            f"✅ Wstawiono **{name}** ({pts} pkt) na pozycję **{insert_rank}** (wojna `{war_id}`). Brakujące pkt: {rec.get('unassigned_points', 0)}.",
+            delete_after=15,
+        )
+    except Exception:
+        pass
+
+    return True
 
     async with WAR_STORE_LOCK:
         rec = await asyncio.to_thread(WAR_STORE.get_war, war_id)
@@ -3374,7 +3617,14 @@ async def try_apply_help_channel_command(
         "• `LISTWAR` — *(reply)* na wiadomość z **1–2 screenami**. Wymagany jest CHAT z rankingiem; SOJUSZ/podsumowanie jest opcjonalne (można uzupełnić ręcznie).\n"
         "  Opcjonalnie: `LISTWAR 27` aby ustawić liczbę uczestników (X) dla przeliczeń w wojnach XvX.\n"
         "• `23 Nick 250` — *(reply)* na wiadomość bota z listą: popraw nick i punkty na pozycji 23.\n"
-        "• `23 Nick` — *(reply)* popraw tylko nick (punkty zostają).\n• `TRYB <tryb>` — *(reply)* uzupełnia/zmienia tryb wojenny (np. `TRYB Lepszy atak`).\n• `WYNIK <nasz> <wrog>` — *(reply)* ustawia wynik punktowy (np. `WYNIK 5800 5750`).\n• `SOJUSZE <nasz> vs <wrog>` — *(reply)* ustawia nazwy sojuszy.\n• `REZULTAT Zwycięstwo/Porażka` — *(reply)* ustawia rezultat.\n• `SUMMARY <nasz> | <wrog> | <rezultat> | <nasz_score> | <wrog_score> | <tryb>` — *(reply)* uzupełnia wszystko naraz.\n• `ASSIGNUNASSIGNED <nick> [pkt]` — *(reply)* przypisuje brakujące punkty (gdy gracz opuścił sojusz w trakcie wojny i nie ma go na liście). Jeśli nie podasz `pkt`, weźmie całość.\n"
+        "• `23 Nick` — *(reply)* popraw tylko nick (punkty zostają).\n"
+        "• `TRYB <tryb>` — *(reply)* uzupełnia/zmienia tryb wojenny (np. `TRYB Lepszy atak`).\n"
+        "• `WYNIK <nasz> <wrog>` — *(reply)* ustawia wynik punktowy (np. `WYNIK 5800 5750`).\n"
+        "• `SOJUSZE <nasz> vs <wrog>` — *(reply)* ustawia nazwy sojuszy.\n"
+        "• `REZULTAT Zwycięstwo/Porażka` — *(reply)* ustawia rezultat.\n"
+        "• `SUMMARY <nasz> | <wrog> | <rezultat> | <nasz_score> | <wrog_score> | <tryb>` — *(reply)* uzupełnia wszystko naraz.\n"
+        "• `INSERT <nick> <pkt>` — *(reply)* dodaje brakującego gracza do rankingu w poprawne miejsce (wg punktów) i przesuwa pozostałych; jednocześnie rozlicza brakujące punkty.\n"
+        "• `ASSIGNUNASSIGNED <nick> [pkt]` — *(legacy)* przypisuje brakujące punkty bez wstawiania do rankingu (jeśli nie podasz `pkt`, weźmie całość).\n"
         "• `ADDWAR` — *(reply)* na poprawną listę bota: **zatwierdza** i dodaje wojnę do strony (CONFIRMED).\n"
         "• `UNLISTWAR` — *(reply)* na listę bota: usuwa DRAFT + kasuje wiadomość; albo `UNLISTWAR <ID>` jako komenda na kanale.\n"
         "• `REMOVEWAR <ID>` — usuwa wojnę ze strony (ID z nagłówka listy).\n"
@@ -4271,7 +4521,7 @@ def main():
             tok0 = text.split()[0]
             tok0_clean = tok0.strip("[](){}")
             tok0_up = tok0_clean.upper()
-            if not (tok0_up in {"LISTWAR", "ADDWAR", "ADDROSTER", "REMOVEROSTER", "ASSIGNUNASSIGNED", "TRYB", "MODE", "WAR_MODE", "WYNIK", "SCORE", "SOJUSZE", "ALLIANCES", "REZULTAT", "RESULT", "SUMMARY", "PODSUMOWANIE", "DATA", "DATE", "UNLISTWAR"} or tok0_clean.isdigit()):
+            if not (tok0_up in {"LISTWAR", "ADDWAR", "ADDROSTER", "REMOVEROSTER", "ASSIGNUNASSIGNED", "INSERT", "TRYB", "MODE", "WAR_MODE", "WYNIK", "SCORE", "SOJUSZE", "ALLIANCES", "REZULTAT", "RESULT", "SUMMARY", "PODSUMOWANIE", "DATA", "DATE", "UNLISTWAR"} or tok0_clean.isdigit()):
                 return
         else:
             if not text:
@@ -4682,6 +4932,16 @@ def main():
                     return
             except Exception:
                 logger.exception("Błąd podczas REMOVEROSTER")
+                had_exception = True
+
+            # INSERT: reply to the bot's war post to insert missing player into ranking
+            try:
+                handled = await try_apply_insert_command(client, message)
+                if handled:
+                    logger.info("INSERT handled -> done")
+                    return
+            except Exception:
+                logger.exception("Błąd podczas INSERT")
                 had_exception = True
 
             # ASSIGNUNASSIGNED: reply to the bot's war post to assign missing points
