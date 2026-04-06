@@ -334,6 +334,13 @@
       .filters { grid-template-columns: 1fr; }
     }
 
+
+    /* Avg table: keep readable on mobile */
+    @media (max-width: 640px) {
+      #rosterTable .col-forma,
+      #rosterTable .col-wahanie { display: none; }
+    }
+
 </style>
 </head>
 <body>
@@ -358,8 +365,8 @@
             <th class="right" title="Jak ostatnia wojna wpłynęła na pozycję w rankingu średniej">Δ</th>
             <th>Nick (roster)</th>
             <th class="right">Średnia</th>
-            <th class="right" title="Trend punktów: średnia z 3 ostatnich wojen minus średnia z poprzednich 3">Trend</th>
-            <th class="right" title="Stabilność: odchylenie standardowe z ostatnich X wojen (niżej = bardziej równy gracz)">Stab.</th>
+            <th class="right col-forma" title="Forma: (średnia z nowszej połowy okna) − (średnia ze starszej połowy okna). Jednostka: pkt/wojnę.">Forma</th>
+            <th class="right col-wahanie" title="Wahanie: (max − min) z ostatnich X wojen. Jednostka: pkt.">Wahanie</th>
             <th class="right">Wojen z pkt</th>
           </tr>
         </thead>
@@ -1168,38 +1175,37 @@
         }
         const calcTrendAndStab = (ptsArr) => {
           if (!Array.isArray(ptsArr)) return { trend: null, stab: null };
+          // ptsArr is ordered from newest -> oldest (same as warsSorted slice)
           const vals = [];
           for (const v of ptsArr) {
             const isObj = (v && typeof v === 'object');
             const n = isObj ? v.v : v;
             if (typeof n === 'number' && !Number.isNaN(n)) vals.push(n);
           }
-          // Stability (std dev) over all available points.
+
+          // Wahanie (range): max-min over available wars for this player.
           let stab = null;
           if (vals.length >= 2) {
-            const mean = vals.reduce((a,b)=>a+b,0) / vals.length;
-            const varr = vals.reduce((a,b)=>a+((b-mean)*(b-mean)),0) / vals.length;
-            stab = Math.sqrt(varr);
+            let mn = vals[0], mx = vals[0];
+            for (const x of vals) { if (x < mn) mn = x; if (x > mx) mx = x; }
+            stab = mx - mn;
           } else if (vals.length === 1) {
             stab = 0;
           }
 
-          // Trend: avg of the most recent 3 wars vs the previous 3 (only wars where player has points).
-          const recent = [];
-          const prev = [];
-          for (const v of ptsArr) {
-            const isObj = (v && typeof v === 'object');
-            const n = isObj ? v.v : v;
-            if (!(typeof n === 'number' && !Number.isNaN(n))) continue;
-            if (recent.length < 3) recent.push(n);
-            else if (prev.length < 3) prev.push(n);
-            if (recent.length >= 3 && prev.length >= 3) break;
-          }
+          // Forma (trend): newer half vs older half of the window (player-only wars).
+          // For X=10 -> avg of last 5 wars minus avg of previous 5 (if player has enough).
           let trend = null;
-          if (recent.length >= 2 && prev.length >= 2) {
-            const a = recent.reduce((x,y)=>x+y,0) / recent.length;
-            const b = prev.reduce((x,y)=>x+y,0) / prev.length;
-            trend = a - b;
+          const n = vals.length;
+          const half = Math.floor(n / 2);
+          if (half >= 2) {
+            const newer = vals.slice(0, half);
+            const older = vals.slice(half, half * 2);
+            if (older.length === half) {
+              const a = newer.reduce((x,y)=>x+y,0) / newer.length;
+              const b = older.reduce((x,y)=>x+y,0) / older.length;
+              trend = a - b;
+            }
           }
           return { trend, stab };
         };
@@ -1402,16 +1408,16 @@
           setOpen(!open);
         };
 
-        const trendPts = (r.trend === null || r.trend === undefined) ? '–' : ((r.trend > 0 ? '+' : '') + r.trend.toFixed(1));
-        const stabPts = (r.stab === null || r.stab === undefined) ? '–' : r.stab.toFixed(1);
+        const trendPts = (r.trend === null || r.trend === undefined) ? '–' : ((r.trend > 0 ? '+' : '') + r.trend.toFixed(0));
+        const stabPts = (r.stab === null || r.stab === undefined) ? '–' : r.stab.toFixed(0);
 
         tr.innerHTML = `
           <td class="right">${idx + 1}</td>
           <td class="right small">${trendHtml(idx + 1, r.name)}</td>
           <td></td>
           <td class="right">${r.avg.toFixed(1)}</td>
-          <td class="right" title="Trend: 3 ostatnie vs poprzednie 3">${trendPts}</td>
-          <td class="right" title="Stabilność: odchylenie standardowe">${stabPts}</td>
+          <td class="right col-forma" title="Forma: nowsza połowa okna vs starsza połowa (pkt/wojnę)">${trendPts}</td>
+          <td class="right col-wahanie" title="Wahanie: max−min z okna (pkt)">${stabPts}</td>
           <td class="right">${r.warsCount < x ? `<span class="excl" title="Brak pełnej liczby wojen (${r.warsCount}/${x})">!</span>` : ``}${r.warsCount}/${x}</td>
         `;
         tr.classList.add('avg-row');
