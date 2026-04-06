@@ -95,7 +95,7 @@
     /* Średnie graczy – rozwijane szczegóły */
     .player-name { font: inherit; color: #e7e7e7; }
     .details-row td { padding-top: 6px; padding-bottom: 10px; }
-    .points-detail { padding-left: 18px; }
+    .points-detail { padding-left: 18px; display: flex; flex-direction: column; gap: 8px; }
     .points-label { margin-right: 8px; }
     .points-chips { display: inline-flex; flex-wrap: wrap; gap: 6px; vertical-align: middle; }
     .pts-chip {
@@ -287,6 +287,14 @@
       font-weight: 800;
     }
 
+
+    /* Rank chips inside player details */
+    .rank-detail { margin-top: 8px; }
+    .rank-label { margin-right: 8px; }
+    .rank-chips { display: inline-flex; flex-wrap: wrap; gap: 6px; vertical-align: middle; }
+    .rank-chip { display: inline-flex; align-items: center; justify-content: center; min-width: 28px; padding: 3px 7px; border-radius: 999px; background: #10151c; border: 1px solid #2a3442; color: #c9d2e0; font-size: 12px; }
+    .rank-best { border-color: rgba(46, 204, 113, 0.55); color: #bff2d2; }
+    .rank-worst { border-color: rgba(255, 92, 92, 0.55); color: #ffd0d0; }
     /* Stopka */
     footer.site-footer {
       margin-top: 18px;
@@ -304,58 +312,28 @@
     footer.site-footer a { color: #c9d2e0; text-decoration: none; border-bottom: 1px solid rgba(201,210,224,0.25); }
     footer.site-footer a:hover { border-bottom-color: rgba(201,210,224,0.6); }
 
+
+    /* Filters layout */
+    .filters {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 10px;
+      margin-top: 10px;
+      align-items: end;
+    }
+    .filter-item { display: flex; flex-direction: column; gap: 6px; }
+    .filter-label { font-size: 12px; color: var(--muted); }
+    @media (max-width: 700px) {
+      .filters { grid-template-columns: 1fr 1fr; gap: 8px; }
+    }
+    @media (max-width: 420px) {
+      .filters { grid-template-columns: 1fr; }
+    }
+
 </style>
 </head>
 <body>
 
-
-  <div class="card">
-    <div class="row" style="justify-content:space-between;">
-      <div><b>Wojny</b> <span class="muted" id="warsSummary" title="Bilans: zwycięstwa–remisy–porażki"></span></div>
-      <div class="muted" id="warsCount">Ładowanie…</div>
-    </div>
-
-    <div class="row" style="margin-top:8px;">
-      <div class="muted">Filtry:</div>
-      <select id="filterResult">
-        <option value="">Wynik: wszystkie</option>
-        <option value="Zwycięstwo">Zwycięstwo</option>
-        <option value="Porażka">Porażka</option>
-      </select>
-      <select id="filterMode">
-        <option value="">Tryb: wszystkie</option>
-      </select>
-      <select id="filterOpponent">
-        <option value="">Przeciwnik: wszyscy</option>
-      </select>
-      <div class="muted">Sort:</div>
-      <select id="sortBy">
-        <option value="date_desc">Data (najnowsze)</option>
-        <option value="result">Wynik (Zwycięstwa na górze)</option>
-        <option value="mode">Tryb (A→Z)</option>
-        <option value="diff_desc">Różnica (malejąco)</option>
-      </select>
-    </div>
-
-    <div class="table-wrap wars-wrap">
-      <table id="warsTable">
-        <thead>
-          <tr>
-            <th>Data</th>
-            <th>Wynik</th>
-            <th class="right">Różnica</th>
-            <th>Przeciwnik</th>
-            <th>Tryb</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-    </div>
-
-    <div class="wars-toggle-wrap">
-      <button id="warsToggleBtn" class="btn" style="display:none;">Pokaż więcej</button>
-    </div>
-  </div>
 
   <div class="card">
     <div class="row">
@@ -386,6 +364,73 @@
       <button id="rosterToggleBtn" class="btn" style="display:none;">Pokaż więcej</button>
     </div>
   </div>
+
+  
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between;">
+      <div><b>Wojny</b> <span class="muted" id="warsSummary" title="Bilans: zwycięstwa–remisy–porażki"></span></div>
+      <div class="muted" id="warsCount">Ładowanie…</div>
+    </div>
+
+    
+    <div class="filters">
+      <div class="filter-item">
+        <div class="filter-label">Wynik</div>
+        <select id="filterResult">
+          <option value="">Wszystkie</option>
+          <option value="Zwycięstwo">Zwycięstwo</option>
+          <option value="Porażka">Porażka</option>
+        </select>
+      </div>
+
+      <div class="filter-item">
+        <div class="filter-label">Tryb</div>
+        <select id="filterMode">
+          <option value="">Wszystkie</option>
+        </select>
+      </div>
+
+      <div class="filter-item">
+        <div class="filter-label">Przeciwnik</div>
+        <select id="filterOpponent">
+          <option value="">Wszyscy</option>
+        </select>
+      </div>
+
+      <div class="filter-item">
+        <div class="filter-label">Sortowanie</div>
+        <select id="sortBy">
+          <option value="date_desc">Data (najnowsze)</option>
+          <option value="result">Wynik (Zwycięstwa na górze)</option>
+          <option value="mode">Tryb (A→Z)</option>
+          <option value="diff_desc">Różnica (malejąco)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="table-wrap wars-wrap">
+
+      <table id="warsTable">
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>Wynik</th>
+            <th class="right">Różnica</th>
+            <th>Przeciwnik</th>
+            <th>Tryb</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="wars-toggle-wrap">
+      <button id="warsToggleBtn" class="btn" style="display:none;">Pokaż więcej</button>
+    </div>
+  </div>
+
+  
 
   <footer class="site-footer" aria-label="Stopka">
     <div class="footer-left">
@@ -1109,7 +1154,7 @@
               const scaled = !!pobj.points_scaled && (pobj.points_scaled_value !== undefined);
               const ptsUsed = useScaled ? eff : raw;
               const participants = (pobj.participants !== undefined && pobj.participants !== null) ? Number(pobj.participants) : null;
-              if (wantPoints && s.points) s.points[i] = { v: ptsUsed, raw, eff, scaled, participants, warId: (w.war_id || '') };
+              if (wantPoints && s.points) s.points[i] = { v: ptsUsed, raw, eff, scaled, participants, warId: (w.war_id || ''), rank: (pobj.rank !== undefined ? Number(pobj.rank) : null), warTs: Number(w.created_at_ts || 0) };
               s.sum += ptsUsed;
               s.count += 1;
             }
@@ -1228,6 +1273,44 @@
 
         detailWrap.appendChild(label);
         detailWrap.appendChild(chips);
+
+        // Second row: positions in the same wars window (based on rank in each war)
+        const rankWrap = document.createElement('div');
+        rankWrap.className = 'rank-detail';
+
+        const rankLabel = document.createElement('span');
+        rankLabel.className = 'points-label rank-label';
+        rankLabel.textContent = 'Pozycje:';
+
+        const rankChips = document.createElement('span');
+        rankChips.className = 'rank-chips';
+
+        const rankNums = (r.points || []).map(v => (v && typeof v === 'object') ? v.rank : null)
+          .filter(v => typeof v === 'number' && !Number.isNaN(v));
+        const bestRank = rankNums.length ? Math.min(...rankNums) : null;
+        const worstRank = rankNums.length ? Math.max(...rankNums) : null;
+
+        const fmtRank = (rk) => (rk === null || rk === undefined || Number.isNaN(Number(rk))) ? '-' : `#${Number(rk)}`;
+
+        for (const v of (r.points || [])) {
+          const chip = document.createElement('span');
+          chip.className = 'rank-chip';
+          const isObj = (v && typeof v === 'object');
+          const rk = isObj ? v.rank : null;
+          chip.textContent = fmtRank(rk);
+
+          if (typeof rk === 'number' && bestRank !== null && worstRank !== null && bestRank !== worstRank) {
+            if (rk === bestRank) chip.classList.add('rank-best');
+            if (rk === worstRank) chip.classList.add('rank-worst');
+          }
+          if (isObj && v.warTs) chip.title = `Wojna: ${fmtDate(v.warTs)}`;
+          rankChips.appendChild(chip);
+        }
+
+        rankWrap.appendChild(rankLabel);
+        rankWrap.appendChild(rankChips);
+        detailWrap.appendChild(rankWrap);
+
         tdDetails.appendChild(detailWrap);
         detailsTr.appendChild(tdDetails);
 

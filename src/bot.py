@@ -780,6 +780,9 @@ async def start_keepalive_server():
             import re
             s = str(s or "")
             s = unicodedata.normalize("NFKC", s).casefold()
+            # Strip beta markers like "(BETA)" which should not affect rotation.
+            s = re.sub(r"\(\s*beta\s*\)", "", s, flags=re.IGNORECASE)
+            s = re.sub(r"\bbeta\b", "", s, flags=re.IGNORECASE)
             s = s.replace("\u200b", "").replace("\u200c", "").replace("\u200d", "")
             s = "".join(ch for ch in unicodedata.normalize("NFKD", s) if unicodedata.category(ch) != "Mn")
             s = re.sub(r"\s+", " ", s).strip()
@@ -855,11 +858,19 @@ async def start_keepalive_server():
         if lk == _canonical_mode_key(MODE_UNDEAD):
             return MODE_SKYFIRE
         if lk == _canonical_mode_key(MODE_SKYFIRE):
-            # Skyfire happens twice: after undead and after equalizer. If previous confirmed war was equalizer,
-            # then this skyfire is the end of the loop and the next is attack boost.
-            prev_mode = (wars_newest_first[0] or {}).get("mode") if wars_newest_first else ""
-            if _canonical_mode_key(prev_mode or "") == _canonical_mode_key(MODE_EQUAL):
+            # Skyfire appears in two places in the rotation:
+            #   UNDEAD -> SKYFIRE -> VOLLEY ...
+            #   EQUAL  -> SKYFIRE -> ATTACK ...
+            # Decide which SKYFIRE slot we are in by looking at the most recent *different* mode.
+            prev_non_sky = ""
+            for w in wars_newest_first:
+                mk = _canonical_mode_key((w or {}).get("mode") or "")
+                if mk and mk != _canonical_mode_key(MODE_SKYFIRE):
+                    prev_non_sky = mk
+                    break
+            if prev_non_sky == _canonical_mode_key(MODE_EQUAL):
                 return MODE_ATTACK
+            # Default: SKYFIRE after UNDEAD
             return MODE_VOLLEY
         if lk == _canonical_mode_key(MODE_VOLLEY):
             return MODE_BLOODY
@@ -1788,7 +1799,11 @@ def render_post(post: WarPost) -> str:
         x_ovr = None
 
     if x_ovr and x_ovr > 0:
-        header += f"Uczestnicy: **{x_ovr}** _(ustawione ręcznie)_\n\n"
+        # If override equals parsed list size, treat it as "from list" for readability.
+        if x_decl and x_decl > 0 and x_ovr == x_decl:
+            header += f"Uczestnicy: **{x_ovr}** _(z listy)_\n\n"
+        else:
+            header += f"Uczestnicy: **{x_ovr}** _(ustawione)_\n\n"
     elif getattr(post, 'participants_pending', False):
         header += "Uczestnicy: *(nieustalone)* — odpowiedz samą liczbą (np. `27`) na tę wiadomość, aby ustawić X dla przeliczeń XvX.\n\n"
     elif x_decl and x_decl > 0:
@@ -3018,6 +3033,20 @@ async def try_apply_insert_command(
     post.lines_by_rank = dict(sorted(new_lines.items(), key=lambda kv: kv[0]))
     post.expected_max_rank = max(post.expected_max_rank, max(post.lines_by_rank.keys(), default=0))
 
+    # Keep participants override in sync with the effective participant count used for XvX scaling.
+    # If a missing player is inserted (e.g. leaver mid-war), this may increase from 29 -> 30.
+    try:
+        eff_count = int(max(post.lines_by_rank.keys(), default=0) or 0)
+    except Exception:
+        eff_count = 0
+    try:
+        cur_x = int(post.participants_override or 0)
+    except Exception:
+        cur_x = 0
+    if eff_count > 0:
+        post.participants_override = max(cur_x, eff_count)
+        post.participants_pending = False
+
     # Reduce unassigned and update post
     post.unassigned_points = max(0, int(post.unassigned_points or 0) - pts)
 
@@ -3028,9 +3057,9 @@ async def try_apply_insert_command(
     # Update storage record
     rec["unassigned_points"] = max(0, unassigned - pts)
 
-    # Store participants override if present in post
+    # Store participants override (kept in sync above)
     if post.participants_override is not None:
-        rec["participants_override"] = post.participants_override
+        rec["participants_override"] = int(post.participants_override)
 
     # Persist players back as raw points
     players_list = []
@@ -4368,6 +4397,28 @@ async def try_apply_manual_corrections(
         if rank > post.expected_max_rank:
             post.expected_max_rank = rank
 
+    # Recompute unassigned points from the updated ranking.
+    # This prevents stale "Brakujące punkty" warnings after manual corrections.
+    try:
+        alliance_total = int((post.summary.our_score or 0) if getattr(post, 'summary', None) else 0)
+    except Exception:
+        alliance_total = 0
+    try:
+        points_sum = int(post.total_points_sum())
+    except Exception:
+        points_sum = 0
+    if alliance_total > 0:
+        post.unassigned_points = max(0, alliance_total - points_sum)
+    else:
+        post.unassigned_points = int(getattr(post, 'unassigned_points', 0) or 0)
+
+    # If participants override was never set, default to parsed list count.
+    if getattr(post, 'participants_override', None) is None:
+        try:
+            post.participants_override = int(post.expected_max_rank or 0) or None
+        except Exception:
+            post.participants_override = None
+
     # Re-render and persist (DRAFT) or archive to storage (CONFIRMED)
     try:
         async with WAR_STORE_LOCK:
@@ -4791,13 +4842,19 @@ def main():
                     post = build_post(summary, players, expected_max_rank)
                     post.war_id = war_id
 
-                    # Participants override / prompt
+                    # Participants override (XvX scaling):
+                    # - If the user provided LISTWAR <X>, use it.
+                    # - Otherwise default to the number of parsed ranks (expected_max_rank), so you
+                    #   don't have to answer manually after each war.
                     if participants_override is not None:
                         post.participants_override = int(participants_override)
                         post.participants_pending = False
                     else:
-                        post.participants_override = None
-                        post.participants_pending = True
+                        try:
+                            post.participants_override = int(post.expected_max_rank or 0) or None
+                        except Exception:
+                            post.participants_override = None
+                        post.participants_pending = False if post.participants_override else True
 
                     # Attach source metadata for traceability and later ADDWAR confirmation.
                     post.ref_message_id = ref_msg.id
