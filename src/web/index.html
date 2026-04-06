@@ -98,15 +98,19 @@
     .points-detail { padding-left: 18px; display: flex; flex-direction: column; gap: 8px; }
     .points-label { margin-right: 8px; }
     .points-chips { display: inline-flex; flex-wrap: wrap; gap: 6px; vertical-align: middle; }
+    /* Points chips: unified look with rank chips */
     .pts-chip {
-      display: inline-block;
-      padding: 1px 6px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 28px;
+      padding: 3px 7px;
       border-radius: 999px;
-      border: 1px solid #2a3443;
-      background: rgba(255,255,255,0.02);
+      background: #10151c;
+      border: 1px solid #2a3442;
+      color: #c9d2e0;
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
       font-size: 12px;
-      color: #d7deea;
     }
 
     /* Min / max highlight in expanded points list */
@@ -354,6 +358,8 @@
             <th class="right" title="Jak ostatnia wojna wpłynęła na pozycję w rankingu średniej">Δ</th>
             <th>Nick (roster)</th>
             <th class="right">Średnia</th>
+            <th class="right" title="Trend punktów: średnia z 3 ostatnich wojen minus średnia z poprzednich 3">Trend</th>
+            <th class="right" title="Stabilność: odchylenie standardowe z ostatnich X wojen (niżej = bardziej równy gracz)">Stab.</th>
             <th class="right">Wojen z pkt</th>
           </tr>
         </thead>
@@ -1160,10 +1166,50 @@
             }
           }
         }
+        const calcTrendAndStab = (ptsArr) => {
+          if (!Array.isArray(ptsArr)) return { trend: null, stab: null };
+          const vals = [];
+          for (const v of ptsArr) {
+            const isObj = (v && typeof v === 'object');
+            const n = isObj ? v.v : v;
+            if (typeof n === 'number' && !Number.isNaN(n)) vals.push(n);
+          }
+          // Stability (std dev) over all available points.
+          let stab = null;
+          if (vals.length >= 2) {
+            const mean = vals.reduce((a,b)=>a+b,0) / vals.length;
+            const varr = vals.reduce((a,b)=>a+((b-mean)*(b-mean)),0) / vals.length;
+            stab = Math.sqrt(varr);
+          } else if (vals.length === 1) {
+            stab = 0;
+          }
+
+          // Trend: avg of the most recent 3 wars vs the previous 3 (only wars where player has points).
+          const recent = [];
+          const prev = [];
+          for (const v of ptsArr) {
+            const isObj = (v && typeof v === 'object');
+            const n = isObj ? v.v : v;
+            if (!(typeof n === 'number' && !Number.isNaN(n))) continue;
+            if (recent.length < 3) recent.push(n);
+            else if (prev.length < 3) prev.push(n);
+            if (recent.length >= 3 && prev.length >= 3) break;
+          }
+          let trend = null;
+          if (recent.length >= 2 && prev.length >= 2) {
+            const a = recent.reduce((x,y)=>x+y,0) / recent.length;
+            const b = prev.reduce((x,y)=>x+y,0) / prev.length;
+            trend = a - b;
+          }
+          return { trend, stab };
+        };
+
         return roster.map(name => {
           const s = statsByName.get(name) || { sum: 0, count: 0, points: wantPoints ? Array(x).fill(null) : null };
           const avg = s.count ? (s.sum / s.count) : 0;
-          return { name, avg, sum: s.sum, warsCount: s.count, points: wantPoints ? (s.points || Array(x).fill(null)) : null };
+          const pts = wantPoints ? (s.points || Array(x).fill(null)) : null;
+          const extra = wantPoints ? calcTrendAndStab(pts) : { trend: null, stab: null };
+          return { name, avg, sum: s.sum, warsCount: s.count, points: pts, trend: extra.trend, stab: extra.stab };
         }).sort((a,b)=> (b.avg - a.avg) || (b.sum - a.sum) || a.name.localeCompare(b.name));
       };
 
@@ -1214,7 +1260,7 @@
 
         // Details row (hidden by default). We only expand it by clicking the arrow next to the nick.
         const tdDetails = document.createElement('td');
-        tdDetails.colSpan = 5;
+        tdDetails.colSpan = 7;
         tdDetails.className = 'small muted';
 
         const detailWrap = document.createElement('div');
@@ -1239,6 +1285,22 @@
           const eff = isObj ? v.v : v;
           const showStar = isObj && v.scaled && useScaled;
           chip.textContent = (eff === null || eff === undefined) ? '-' : fmtPts(eff);
+
+          // Tooltip: show war date and both raw/scaled if available.
+          try {
+            const warDate = (isObj && v.warTs) ? fmtDate(v.warTs) : '';
+            if (isObj) {
+              const rawTxt = (v.raw !== undefined && v.raw !== null) ? fmtPts(v.raw) : '-';
+              const effTxt = (v.eff !== undefined && v.eff !== null) ? fmtPts(v.eff) : fmtPts(eff);
+              const shownTxt = fmtPts(eff);
+              const partTxt = v.participants ? `${v.participants}v${v.participants}` : 'XvX';
+              if (v.scaled) {
+                chip.title = `${warDate ? `Wojna: ${warDate} • ` : ''}${partTxt}: raw=${rawTxt}, przel=${effTxt}. Pokazujesz: ${shownTxt}`;
+              } else {
+                chip.title = `${warDate ? `Wojna: ${warDate} • ` : ''}Pkt: ${shownTxt}`;
+              }
+            }
+          } catch (_) {}
 
           // For wars where points were scaled (X!=30):
           // - when showing scaled points: highlight + star
@@ -1340,11 +1402,16 @@
           setOpen(!open);
         };
 
+        const trendPts = (r.trend === null || r.trend === undefined) ? '–' : ((r.trend > 0 ? '+' : '') + r.trend.toFixed(1));
+        const stabPts = (r.stab === null || r.stab === undefined) ? '–' : r.stab.toFixed(1);
+
         tr.innerHTML = `
           <td class="right">${idx + 1}</td>
           <td class="right small">${trendHtml(idx + 1, r.name)}</td>
           <td></td>
           <td class="right">${r.avg.toFixed(1)}</td>
+          <td class="right" title="Trend: 3 ostatnie vs poprzednie 3">${trendPts}</td>
+          <td class="right" title="Stabilność: odchylenie standardowe">${stabPts}</td>
           <td class="right">${r.warsCount < x ? `<span class="excl" title="Brak pełnej liczby wojen (${r.warsCount}/${x})">!</span>` : ``}${r.warsCount}/${x}</td>
         `;
         tr.classList.add('avg-row');
