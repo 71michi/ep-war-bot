@@ -106,6 +106,11 @@ _CHAR_MAP = {
     "ɢ": "g", "ʜ": "h", "ɪ": "i", "ᴊ": "j", "ᴋ": "k", "ʟ": "l",
     "ᴍ": "m", "ɴ": "n", "ᴏ": "o", "ᴘ": "p", "ʀ": "r", "ᴛ": "t",
     "ᴜ": "u", "ᴠ": "v", "ᴡ": "w", "ʏ": "u", "ᴢ": "z",
+
+    # hard OCR alias support for decorated nick -> Bezduszny
+    # user-requested replacements:
+    # 乃->b, モ->e, 乙->z, り->d, ひ->u, 丂->s, 刀->n, リ->y
+    "乃": "b", "モ": "e", "乙": "z", "り": "d", "ひ": "u", "丂": "s", "刀": "n", "リ": "y",
 }
 
 def _strip_diacritics(s: str) -> str:

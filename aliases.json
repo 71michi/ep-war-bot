@@ -47,7 +47,12 @@
     "teaminatora": "Terminator",
     "terminator": "Terminator",
     "terminatora": "Terminator",
-    "teamiinatora": "Terminator"
+    "teamiinatora": "Terminator",
+    "bezduszny": "Bezduszny",
+    "bezuuzny": "Bezduszny",
+    "bezdusznyy": "Bezduszny",
+    "bezduezy": "Bezduszny",
+    "bezduzzn": "Bezduszny"
   },
   "exact": {
     "mađeνuł": "Madevil",
@@ -60,6 +65,14 @@
     "яга": "Jaro",
     "јаго": "Jaro",
     "◊ Z@vi$z@ ◊": "Zawisza",
-    "⟪》Z@ѵi§Z@《⟫": "Zawisza"
+    "⟪》Z@ѵi§Z@《⟫": "Zawisza",
+    "★乃モ乙りひち乙刀★": "Bezduszny",
+    "★乃乇乙ひひら刀リ★": "Bezduszny",
+    "★乃モ乙りひち乙刀リ★": "Bezduszny",
+    "★乃モ乙りひ乇乙ㄚ★": "Bezduszny",
+    "★乃モ乙りひ丂乙刀リ★": "Bezduszny",
+    "★乃モ乙りひ弓乙刀★": "Bezduszny",
+    "★カモコリヒ弓乙カリ★": "Bezduszny",
+    "★乃乇乙ｱひんち乙ｱﾘ★": "Bezduszny"
   }
 }
