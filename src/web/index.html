@@ -171,6 +171,23 @@
       font-weight: 700;
       opacity: 0.95;
     }
+    .pts-chip .chip-rank-inline {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 32px;
+      padding: 2px 7px;
+      border-radius: 999px;
+      background: rgba(7, 10, 15, 0.42);
+      border: 1px solid rgba(255,255,255,0.12);
+      color: #d8dfeb;
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1;
+      letter-spacing: .01em;
+      margin-left: 2px;
+      flex: 0 0 auto;
+    }
     .pts-chip.pts-above-avg {
       box-shadow: inset 0 0 0 1px rgba(46, 204, 113, 0.18);
       border-color: rgba(46, 204, 113, 0.60);
@@ -415,14 +432,6 @@
       font-weight: 800;
     }
 
-
-    /* Rank chips inside player details */
-    .rank-detail { margin-top: 8px; }
-    .rank-label { margin-right: 8px; }
-    .rank-chips { display: inline-flex; flex-wrap: wrap; gap: 6px; vertical-align: middle; }
-    .rank-chip { display: inline-flex; align-items: center; justify-content: center; min-width: 28px; padding: 3px 7px; border-radius: 999px; background: #10151c; border: 1px solid #2a3442; color: #c9d2e0; font-size: 12px; }
-    .rank-best { border-color: rgba(46, 204, 113, 0.55); color: #bff2d2; }
-    .rank-worst { border-color: rgba(255, 92, 92, 0.55); color: #ffd0d0; }
     /* Stopka */
     footer.site-footer {
       margin-top: 18px;
@@ -1560,6 +1569,14 @@
             content.appendChild(ind);
           }
 
+          if (isObj) {
+            const rankNum = Number(v.rank);
+            const rankInline = document.createElement('span');
+            rankInline.className = 'chip-rank-inline';
+            rankInline.textContent = Number.isFinite(rankNum) ? `#${rankNum}` : '#–';
+            content.appendChild(rankInline);
+          }
+
           chip.appendChild(content);
 
           // Tooltip: show war date, mode, average relation and raw/scaled values if available.
@@ -1574,7 +1591,8 @@
                 : '-';
               const partTxt = v.participants ? `${v.participants}v${v.participants}` : 'XvX';
               const modeTxt = v.mode || '-';
-              chip.title = `${warDate ? `Wojna: ${warDate} • ` : ''}Tryb: ${modeTxt} • Pkt: ${shownTxt} • Średnia wojny: ${avgTxt} • Różnica: ${diffTxt}${v.scaled ? ` • ${partTxt}: raw=${rawTxt}, przel=${effTxt}` : ''}`;
+              const rankTxt = (v.rank !== undefined && v.rank !== null && Number.isFinite(Number(v.rank))) ? ` • Pozycja: #${Number(v.rank)}` : '';
+              chip.title = `${warDate ? `Wojna: ${warDate} • ` : ''}Tryb: ${modeTxt}${rankTxt} • Pkt: ${shownTxt} • Średnia wojny: ${avgTxt} • Różnica: ${diffTxt}${v.scaled ? ` • ${partTxt}: raw=${rawTxt}, przel=${effTxt}` : ''}`;
             } else {
               chip.title = `Pkt: ${shownTxt}`;
             }
@@ -1600,7 +1618,7 @@
                 ? `${Number(relation.diff) >= 0 ? '+' : ''}${fmtPts(relation.diff)}`
                 : '-';
               showChipNote(
-                `Tryb: ${v.mode || '-'} • Wojna ${part}: pokazujesz wynik ${shownLabel} = ${fmtPts(shownVal)}. Drugi wariant = ${fmtPts(otherVal)}. Średnia wojny = ${avgTxt}, różnica = ${diffTxt}.`,
+                `Tryb: ${v.mode || '-'}${Number.isFinite(Number(v.rank)) ? ` • Pozycja #${Number(v.rank)}` : ''} • Wojna ${part}: pokazujesz wynik ${shownLabel} = ${fmtPts(shownVal)}. Drugi wariant = ${fmtPts(otherVal)}. Średnia wojny = ${avgTxt}, różnica = ${diffTxt}.`,
                 chip
               );
             };
@@ -1616,43 +1634,6 @@
 
         detailWrap.appendChild(label);
         detailWrap.appendChild(chips);
-
-        // Second row: positions in the same wars window (based on rank in each war)
-        const rankWrap = document.createElement('div');
-        rankWrap.className = 'rank-detail';
-
-        const rankLabel = document.createElement('span');
-        rankLabel.className = 'points-label rank-label';
-        rankLabel.textContent = 'Pozycje:';
-
-        const rankChips = document.createElement('span');
-        rankChips.className = 'rank-chips';
-
-        const rankNums = (r.points || []).map(v => (v && typeof v === 'object') ? v.rank : null)
-          .filter(v => typeof v === 'number' && !Number.isNaN(v));
-        const bestRank = rankNums.length ? Math.min(...rankNums) : null;
-        const worstRank = rankNums.length ? Math.max(...rankNums) : null;
-
-        const fmtRank = (rk) => (rk === null || rk === undefined || Number.isNaN(Number(rk))) ? '-' : `#${Number(rk)}`;
-
-        for (const v of (r.points || [])) {
-          const chip = document.createElement('span');
-          chip.className = 'rank-chip';
-          const isObj = (v && typeof v === 'object');
-          const rk = isObj ? v.rank : null;
-          chip.textContent = fmtRank(rk);
-
-          if (typeof rk === 'number' && bestRank !== null && worstRank !== null && bestRank !== worstRank) {
-            if (rk === bestRank) chip.classList.add('rank-best');
-            if (rk === worstRank) chip.classList.add('rank-worst');
-          }
-          if (isObj && v.warTs) chip.title = `Wojna: ${fmtDate(v.warTs)}`;
-          rankChips.appendChild(chip);
-        }
-
-        rankWrap.appendChild(rankLabel);
-        rankWrap.appendChild(rankChips);
-        detailWrap.appendChild(rankWrap);
 
         tdDetails.appendChild(detailWrap);
         detailsTr.appendChild(tdDetails);
