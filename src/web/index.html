@@ -191,20 +191,24 @@
     /* Mobile players list for war details */
     .players-mobile { display: none; }
     .players-mobile .player-line {
-      display: flex;
+      display: grid;
+      grid-template-columns: 42px minmax(0, 1fr) 56px 52px;
       align-items: center;
-      gap: 10px;
-      padding: 10px 12px;
-      border: 1px solid #222a35;
-      border-radius: 12px;
-      background: rgba(255,255,255,0.01);
+      gap: 8px;
+      padding: 7px 10px;
+      border: 1px solid rgba(44,58,76,0.8);
+      border-radius: 10px;
+      background: rgba(8,14,22,0.32);
+      min-height: 42px;
     }
     .players-mobile .player-line.row-unknown { background: rgba(241, 196, 15, 0.06); }
     .players-mobile .player-line.row-oor { background: rgba(241, 196, 15, 0.04); }
-    .players-mobile .rank-badge { flex: 0 0 auto; min-width: 34px; text-align: center; }
-    .players-mobile .pname { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .players-mobile .pts { flex: 0 0 auto; min-width: 56px; text-align: right; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
-    .players-mobile .pstatus { flex: 0 0 auto; min-width: 92px; text-align: right; white-space: nowrap; display: flex; justify-content: flex-end; }
+    .players-mobile .player-line.above-avg { background: rgba(46, 204, 113, 0.05); border-color: rgba(46, 204, 113, 0.22); }
+    .players-mobile .player-line.below-avg { background: rgba(231, 76, 60, 0.04); border-color: rgba(231, 76, 60, 0.18); }
+    .players-mobile .rank-badge { flex: 0 0 auto; min-width: 30px; text-align: center; }
+    .players-mobile .pname { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; }
+    .players-mobile .pts { min-width: 0; text-align: right; font-size: 14px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    .players-mobile .pstatus { min-width: 0; text-align: right; white-space: nowrap; display: flex; justify-content: flex-end; }
     .rank-badge {
       display: inline-flex;
       min-width: 26px;
@@ -224,6 +228,32 @@
     }
     .status-cell { white-space: nowrap; }
     .status-pill { margin-left: 6px; }
+    .avg-separator td,
+    .players-mobile .avg-separator {
+      padding: 6px 0 4px;
+      background: transparent !important;
+      border: 0 !important;
+    }
+    .avg-separator-line {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #9fb0c7;
+      font-size: 11px;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+    }
+    .avg-separator-line::before,
+    .avg-separator-line::after {
+      content: '';
+      flex: 1 1 auto;
+      border-top: 1px dashed rgba(159,176,199,0.38);
+    }
+    .avg-separator-line strong { color: #d6e2f1; font-weight: 700; text-transform: none; letter-spacing: 0; }
+    .players-table tr.above-avg td { background: rgba(46, 204, 113, 0.04); }
+    .players-table tr.below-avg td { background: rgba(231, 76, 60, 0.03); }
+    .players-table tr.above-avg:hover td { background: rgba(46, 204, 113, 0.06); }
+    .players-table tr.below-avg:hover td { background: rgba(231, 76, 60, 0.05); }
 
     /* Wojny: przycisk Pokaż więcej/mniej */
     .wars-toggle-wrap { margin-top: 10px; display: flex; justify-content: flex-start; }
@@ -309,7 +339,12 @@
 
       /* War details players list on mobile uses div-based layout (no table hacks for Safari) */
       .players-table { display: none; }
-      .players-mobile { display: flex; flex-direction: column; gap: 8px; }
+      .players-mobile { display: flex; flex-direction: column; gap: 6px; }
+      .players-mobile .player-line { grid-template-columns: 38px minmax(0, 1fr) 48px 42px; padding: 6px 8px; min-height: 38px; border-radius: 9px; }
+      .players-mobile .pname { font-size: 14px; }
+      .players-mobile .pts { font-size: 13px; }
+      .players-mobile .pstatus .pill { font-size: 10px; padding: 2px 6px; }
+      .players-mobile .rank-badge { min-width: 26px; padding: 1px 5px; font-size: 11px; }
     }
   
     .mode-cell {
@@ -908,7 +943,53 @@
 
       const players = Array.isArray(w.players) ? w.players : [];
 
-      const mkPlayersRowHtml = (p) => {
+      const avgForPlayers = (arr) => {
+        if (!arr.length) return NaN;
+        const vals = arr.map(p => useScaled
+          ? ((p.points_scaled_value !== undefined) ? Number(p.points_scaled_value) : Number((p.points !== undefined) ? p.points : p.points_raw || 0))
+          : Number((p.points_raw !== undefined) ? p.points_raw : p.points || 0)
+        ).filter(v => Number.isFinite(v));
+        if (!vals.length) return NaN;
+        return vals.reduce((a,b)=>a+b,0) / vals.length;
+      };
+      const avgSeparatorHtml = (avg) => `
+        <tr class="avg-separator"><td colspan="4"><div class="avg-separator-line">Średni wynik <strong>${escapeHtml(avg.toFixed(1))}</strong></div></td></tr>
+      `;
+      const avgSeparatorMobileHtml = (avg) => `
+        <div class="avg-separator"><div class="avg-separator-line">Średni wynik <strong>${escapeHtml(avg.toFixed(1))}</strong></div></div>
+      `;
+      const decoratePlayersByAverage = (arr) => {
+        const avg = avgForPlayers(arr);
+        let inserted = false;
+        const rows = [];
+        arr.forEach((p, idx) => {
+          const shownPts = useScaled
+            ? ((p.points_scaled_value !== undefined) ? Number(p.points_scaled_value) : Number((p.points !== undefined) ? p.points : p.points_raw || 0))
+            : Number((p.points_raw !== undefined) ? p.points_raw : p.points || 0);
+          const above = Number.isFinite(avg) && Number.isFinite(shownPts) ? shownPts >= avg : false;
+          rows.push({ p, aboveAvg: above, avg });
+          if (!inserted && Number.isFinite(avg) && idx < arr.length - 1) {
+            const next = arr[idx + 1];
+            const nextPts = useScaled
+              ? ((next.points_scaled_value !== undefined) ? Number(next.points_scaled_value) : Number((next.points !== undefined) ? next.points : next.points_raw || 0))
+              : Number((next.points_raw !== undefined) ? next.points_raw : next.points || 0);
+            if (Number.isFinite(shownPts) && Number.isFinite(nextPts) && shownPts >= avg && nextPts < avg) {
+              rows.push({ separator: true, avg });
+              inserted = true;
+            }
+          }
+        });
+        if (!inserted && Number.isFinite(avg) && arr.length) {
+          const firstPts = useScaled
+            ? ((arr[0].points_scaled_value !== undefined) ? Number(arr[0].points_scaled_value) : Number((arr[0].points !== undefined) ? arr[0].points : arr[0].points_raw || 0))
+            : Number((arr[0].points_raw !== undefined) ? arr[0].points_raw : arr[0].points || 0);
+          if (Number.isFinite(firstPts) && firstPts < avg) rows.unshift({ separator: true, avg });
+          else rows.push({ separator: true, avg });
+        }
+        return rows;
+      };
+
+      const mkPlayersRowHtml = (p, aboveAvg = null) => {
         const status = String(p.status || 'ok');
         const outsideNow = (p.outside_current_roster === true);
         let statusHtml = '';
@@ -930,6 +1011,9 @@
         const scaled = useScaled && !!p.points_scaled && (p.points_scaled_value !== undefined);
         const pts = escapeHtml((shownPts ?? '') );
 
+        if (aboveAvg === true) rowClass = (rowClass ? rowClass + ' ' : '') + 'above-avg';
+        else if (aboveAvg === false) rowClass = (rowClass ? rowClass + ' ' : '') + 'below-avg';
+
         return `
           <tr class="${rowClass}" data-rank="${Number.isFinite(rankNum) ? rankNum : ''}" data-pts="${Number.isFinite(ptsNum) ? ptsNum : ''}" data-name="${escapeHtml(p.name ?? '')}">
             <td class="player-col-rank right" data-label="#"><span class="rank-badge">${escapeHtml(rank)}</span></td>
@@ -940,7 +1024,7 @@
         `;
       };
 
-      const mkPlayersLineHtml = (p) => {
+      const mkPlayersLineHtml = (p, aboveAvg = null) => {
         const status = String(p.status || 'ok');
         const outsideNow = (p.outside_current_roster === true);
         let statusHtml = '<span class="muted small">—</span>';
@@ -962,6 +1046,9 @@
         const scaled = useScaled && !!p.points_scaled && (p.points_scaled_value !== undefined);
         const pts = escapeHtml((shownPts ?? '') );
 
+        if (aboveAvg === true) rowClass = (rowClass ? rowClass + ' ' : '') + 'above-avg';
+        else if (aboveAvg === false) rowClass = (rowClass ? rowClass + ' ' : '') + 'below-avg';
+
         return `
           <div class="player-line ${rowClass}" data-rank="${Number.isFinite(rankNum) ? rankNum : ''}" data-pts="${Number.isFinite(ptsNum) ? ptsNum : ''}" data-name="${escapeHtml(p.name ?? '')}">
             <span class="rank-badge">${escapeHtml(rank)}</span>
@@ -972,8 +1059,14 @@
         `;
       };
 
-      const buildPlayersRowsHtml = (arr) => arr.map(mkPlayersRowHtml).join('');
-      const buildPlayersMobileHtml = (arr) => arr.map(mkPlayersLineHtml).join('');
+      const buildPlayersRowsHtml = (arr) => decoratePlayersByAverage(arr).map(item => {
+        if (item.separator) return avgSeparatorHtml(item.avg);
+        return mkPlayersRowHtml(item.p, item.aboveAvg);
+      }).join('');
+      const buildPlayersMobileHtml = (arr) => decoratePlayersByAverage(arr).map(item => {
+        if (item.separator) return avgSeparatorMobileHtml(item.avg);
+        return mkPlayersLineHtml(item.p, item.aboveAvg);
+      }).join('');
       const playersRowsHtml = buildPlayersRowsHtml(players);
       const playersMobileHtml = buildPlayersMobileHtml(players);
 
