@@ -144,6 +144,45 @@
       color: rgba(205, 225, 255, 0.98);
       cursor: pointer;
     }
+    .pts-chip-wrap {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      min-width: 0;
+    }
+    .pts-chip .chip-mode-icon {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      flex: 0 0 auto;
+      box-shadow: 0 0 0 1px rgba(17, 24, 39, 0.65);
+    }
+    .pts-chip .chip-value {
+      line-height: 1;
+    }
+    .pts-chip .chip-avg-ind {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 12px;
+      min-width: 12px;
+      font-size: 10px;
+      line-height: 1;
+      font-weight: 700;
+      opacity: 0.95;
+    }
+    .pts-chip.pts-above-avg {
+      box-shadow: inset 0 0 0 1px rgba(46, 204, 113, 0.18);
+      border-color: rgba(46, 204, 113, 0.60);
+    }
+    .pts-chip.pts-below-avg {
+      box-shadow: inset 0 0 0 1px rgba(231, 76, 60, 0.16);
+      border-color: rgba(231, 76, 60, 0.56);
+    }
+    .pts-chip.pts-near-avg {
+      box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.14);
+      border-color: rgba(148, 163, 184, 0.52);
+    }
 
     /* Mała notka (popover) po kliknięciu przeliczonego wyniku */
     .chip-note {
@@ -662,6 +701,31 @@
     const file = MODE_ICON_MAP.get(key);
     const placeholder = "data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2264%22 height=%2264%22%3E%3Crect width=%2264%22 height=%2264%22 rx=%2232%22 ry=%2232%22 fill=%22%231c2533%22/%3E%3Ctext x=%2232%22 y=%2242%22 font-size=%2234%22 text-anchor=%22middle%22 fill=%22%23e7e7e7%22 font-family=%22Arial%22%3E%3F%3C/text%3E%3C/svg%3E";
     return file ? `/static/icons/${file}` : placeholder;
+  }
+
+  function getWarAverageForPlayers(players, useScaled) {
+    const vals = (Array.isArray(players) ? players : [])
+      .map((p) => useScaled
+        ? ((p.points_scaled_value !== undefined) ? Number(p.points_scaled_value) : Number((p.points !== undefined) ? p.points : p.points_raw || 0))
+        : Number((p.points_raw !== undefined) ? p.points_raw : p.points || 0))
+      .filter((v) => Number.isFinite(v));
+    if (!vals.length) return null;
+    return vals.reduce((a, b) => a + b, 0) / vals.length;
+  }
+
+  function getAverageRelationInfo(value, avg) {
+    if (!Number.isFinite(Number(value)) || !Number.isFinite(Number(avg))) {
+      return { cls: '', symbol: '', label: 'Brak porównania', diff: null };
+    }
+    const diff = Number(value) - Number(avg);
+    const threshold = Math.max(0.5, Math.abs(Number(avg)) * 0.015);
+    if (Math.abs(diff) <= threshold) {
+      return { cls: 'pts-near-avg', symbol: '•', label: 'Blisko średniej', diff };
+    }
+    if (diff > 0) {
+      return { cls: 'pts-above-avg', symbol: '↑', label: 'Powyżej średniej', diff };
+    }
+    return { cls: 'pts-below-avg', symbol: '↓', label: 'Poniżej średniej', diff };
   }
 
   // Tooltip handling (mobile mode icon):
@@ -1331,7 +1395,20 @@
               const scaled = !!pobj.points_scaled && (pobj.points_scaled_value !== undefined);
               const ptsUsed = useScaled ? eff : raw;
               const participants = (pobj.participants !== undefined && pobj.participants !== null) ? Number(pobj.participants) : null;
-              if (wantPoints && s.points) s.points[i] = { v: ptsUsed, raw, eff, scaled, participants, warId: (w.war_id || ''), rank: (pobj.rank !== undefined ? Number(pobj.rank) : null), warTs: Number(w.created_at_ts || 0) };
+              if (wantPoints && s.points) {
+                s.points[i] = {
+                  v: ptsUsed,
+                  raw,
+                  eff,
+                  scaled,
+                  participants,
+                  warId: (w.war_id || ''),
+                  rank: (pobj.rank !== undefined ? Number(pobj.rank) : null),
+                  warTs: Number(w.created_at_ts || 0),
+                  mode: (w.mode || '').trim() || '-',
+                  warAvg: getWarAverageForPlayers(w.players || [], useScaled),
+                };
+              }
               s.sum += ptsUsed;
               s.count += 1;
             }
@@ -1453,43 +1530,77 @@
 
           const isObj = (v && typeof v === 'object');
           const eff = isObj ? v.v : v;
-          const showStar = isObj && v.scaled && useScaled;
-          chip.textContent = (eff === null || eff === undefined) ? '-' : fmtPts(eff);
+          const shownTxt = (eff === null || eff === undefined) ? '-' : fmtPts(eff);
+          const relation = isObj ? getAverageRelationInfo(eff, v.warAvg) : { cls: '', symbol: '', label: '', diff: null };
 
-          // Tooltip: show war date and both raw/scaled if available.
+          if (relation.cls) chip.classList.add(relation.cls);
+
+          const content = document.createElement('span');
+          content.className = 'pts-chip-wrap';
+
+          if (isObj) {
+            const modeIcon = document.createElement('img');
+            modeIcon.className = 'chip-mode-icon';
+            modeIcon.src = getModeIconSrc(v.mode || '');
+            modeIcon.alt = String(v.mode || 'Tryb wojny');
+            modeIcon.loading = 'lazy';
+            content.appendChild(modeIcon);
+          }
+
+          const valueEl = document.createElement('span');
+          valueEl.className = 'chip-value';
+          valueEl.textContent = shownTxt;
+          content.appendChild(valueEl);
+
+          if (isObj && relation.symbol) {
+            const ind = document.createElement('span');
+            ind.className = 'chip-avg-ind';
+            ind.textContent = relation.symbol;
+            ind.setAttribute('aria-hidden', 'true');
+            content.appendChild(ind);
+          }
+
+          chip.appendChild(content);
+
+          // Tooltip: show war date, mode, average relation and raw/scaled values if available.
           try {
             const warDate = (isObj && v.warTs) ? fmtDate(v.warTs) : '';
             if (isObj) {
               const rawTxt = (v.raw !== undefined && v.raw !== null) ? fmtPts(v.raw) : '-';
               const effTxt = (v.eff !== undefined && v.eff !== null) ? fmtPts(v.eff) : fmtPts(eff);
-              const shownTxt = fmtPts(eff);
+              const avgTxt = (v.warAvg !== undefined && v.warAvg !== null && Number.isFinite(Number(v.warAvg))) ? fmtPts(v.warAvg) : '-';
+              const diffTxt = (relation.diff !== null && relation.diff !== undefined && Number.isFinite(Number(relation.diff)))
+                ? `${Number(relation.diff) >= 0 ? '+' : ''}${fmtPts(relation.diff)}`
+                : '-';
               const partTxt = v.participants ? `${v.participants}v${v.participants}` : 'XvX';
-              if (v.scaled) {
-                chip.title = `${warDate ? `Wojna: ${warDate} • ` : ''}${partTxt}: raw=${rawTxt}, przel=${effTxt}. Pokazujesz: ${shownTxt}`;
-              } else {
-                chip.title = `${warDate ? `Wojna: ${warDate} • ` : ''}Pkt: ${shownTxt}`;
-              }
+              const modeTxt = v.mode || '-';
+              chip.title = `${warDate ? `Wojna: ${warDate} • ` : ''}Tryb: ${modeTxt} • Pkt: ${shownTxt} • Średnia wojny: ${avgTxt} • Różnica: ${diffTxt}${v.scaled ? ` • ${partTxt}: raw=${rawTxt}, przel=${effTxt}` : ''}`;
+            } else {
+              chip.title = `Pkt: ${shownTxt}`;
             }
           } catch (_) {}
 
           // For wars where points were scaled (X!=30):
-          // - when showing scaled points: highlight + star
-          // - when showing raw points: no special highlight, but still allow click to see both values
+          // - when showing scaled points: highlight
+          // - when showing raw points: still allow click to see both values
           if (isObj && v.scaled) {
             if (useScaled) chip.classList.add('pts-scaled');
             chip.dataset.raw = String(v.raw);
             chip.dataset.participants = v.participants ? String(v.participants) : '';
             chip.dataset.eff = String(v.eff !== undefined ? v.eff : eff);
             chip.dataset.shown = String(eff);
-            chip.title = useScaled ? 'Wynik przeliczony (kliknij po szczegóły)' : 'Wynik surowy (kliknij po szczegóły)';
             chip.onclick = (e) => {
               try { e.stopPropagation(); } catch (_) {}
               const part = v.participants ? `${v.participants}v${v.participants}` : 'XvX';
               const shownLabel = useScaled ? 'przeliczony' : 'surowy';
               const shownVal = useScaled ? (v.eff !== undefined ? v.eff : eff) : v.raw;
               const otherVal = useScaled ? v.raw : (v.eff !== undefined ? v.eff : eff);
+              const avgTxt = (v.warAvg !== undefined && v.warAvg !== null && Number.isFinite(Number(v.warAvg))) ? fmtPts(v.warAvg) : '-';
+              const diffTxt = (relation.diff !== null && relation.diff !== undefined && Number.isFinite(Number(relation.diff)))
+                ? `${Number(relation.diff) >= 0 ? '+' : ''}${fmtPts(relation.diff)}`
+                : '-';
               showChipNote(
-                `Wojna ${part} (niepełny sojusz): pokazujesz wynik ${shownLabel} = ${fmtPts(shownVal)}. Drugi wariant = ${fmtPts(otherVal)}.`,
+                `Tryb: ${v.mode || '-'} • Wojna ${part}: pokazujesz wynik ${shownLabel} = ${fmtPts(shownVal)}. Drugi wariant = ${fmtPts(otherVal)}. Średnia wojny = ${avgTxt}, różnica = ${diffTxt}.`,
                 chip
               );
             };
