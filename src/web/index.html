@@ -6,19 +6,20 @@
   <title>G3W War Dashboard</title>
   <style>
     :root { color-scheme: dark; }
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 16px; background: linear-gradient(180deg, #0f1115 0%, #0d1218 100%); color: #e7e7e7; position: relative; overflow-x: hidden; }
-    body::before { content: ''; position: fixed; inset: 0; pointer-events: none; background: url('/static/icons/g3wlogo.png') center 42% / min(72vw, 700px) auto no-repeat; opacity: 0.042; filter: saturate(0.9) brightness(0.9); z-index: 0; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 16px; background: radial-gradient(circle at top, #17212d 0%, #0f141b 38%, #0c1117 100%); color: #e7e7e7; position: relative; overflow-x: hidden; }
+    body::before { content: ''; position: fixed; inset: 0; pointer-events: none; background: url('/static/icons/g3wlogo.png') center 46% / min(58vw, 620px) auto no-repeat; opacity: 0.075; filter: saturate(0.92) brightness(0.92) blur(0.2px); z-index: 0; }
+    body::after { content: ''; position: fixed; inset: 0; pointer-events: none; background: radial-gradient(circle at center, rgba(255,255,255,0.03), rgba(12,17,23,0.18) 42%, rgba(12,17,23,0.62) 100%); z-index: 0; }
     body > * { position: relative; z-index: 1; }
     h1 { margin: 0 0 10px; font-size: 20px; }
     .muted { color: #a8b0bd; }
-    .card { background: #151a22; border: 1px solid #222a35; border-radius: 10px; padding: 12px; margin: 10px 0 16px; }
-    .table-wrap { overflow: auto; margin-top: 10px; }
+    .card { background: linear-gradient(180deg, rgba(20, 27, 36, 0.74), rgba(12, 17, 24, 0.70)); border: 1px solid rgba(78, 93, 116, 0.34); border-radius: 18px; padding: 14px; margin: 12px 0 18px; box-shadow: 0 18px 40px rgba(0,0,0,0.20); backdrop-filter: blur(10px) saturate(125%); -webkit-backdrop-filter: blur(10px) saturate(125%); }
+    .table-wrap { overflow: auto; margin-top: 10px; border-radius: 14px; background: rgba(9, 13, 19, 0.18); }
     .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
     select, input { background: #0f1115; color: #e7e7e7; border: 1px solid #2a3443; border-radius: 8px; padding: 6px 8px; }
     table { width: 100%; border-collapse: collapse; }
-    th, td { border-bottom: 1px solid #222a35; padding: 8px 6px; vertical-align: top; }
+    th, td { border-bottom: 1px solid rgba(60, 74, 96, 0.38); padding: 8px 6px; vertical-align: top; background: transparent; }
     th { text-align: left; color: #c9d2e0; font-weight: 600; }
-    tr:hover td { background: rgba(255,255,255,0.02); }
+    tr:hover td { background: rgba(255,255,255,0.04); }
     /* Wyraźniejsze Zwycięstwo / Porażka (delikatne tło całego wiersza) */
     tr.row-win td { background: rgba(46, 204, 113, 0.06); }
     tr.row-loss td { background: rgba(231, 76, 60, 0.06); }
@@ -174,7 +175,7 @@
     .players-table { width: 100%; border-collapse: collapse; border: 1px solid #222a35; border-radius: 10px; overflow: hidden; }
     .players-table th, .players-table td { padding: 8px 10px; border-bottom: 1px solid #222a35; }
     .players-table th { background: rgba(255,255,255,0.02); color: #c9d2e0; font-weight: 650; }
-    .players-table tr:hover td { background: rgba(255,255,255,0.02); }
+    .players-table tr:hover td { background: rgba(255,255,255,0.04); }
     /* Podświetlenie wierszy ze statusem (UNKNOWN / poza rosterem) */
     .players-table tr.row-unknown td { background: rgba(241, 196, 15, 0.06); }
     .players-table tr.row-oor td { background: rgba(241, 196, 15, 0.04); }
@@ -227,11 +228,13 @@
       gap: 14px;
       padding: 12px 14px;
       margin: 0 0 14px;
-      background: linear-gradient(180deg, rgba(22, 28, 37, 0.94), rgba(16, 21, 28, 0.94));
-      border: 1px solid #222a35;
-      border-radius: 16px;
-      box-shadow: 0 12px 30px rgba(0,0,0,0.22);
+      background: linear-gradient(180deg, rgba(22, 28, 37, 0.72), rgba(16, 21, 28, 0.66));
+      border: 1px solid rgba(78, 93, 116, 0.34);
+      border-radius: 18px;
+      box-shadow: 0 18px 40px rgba(0,0,0,0.18);
       overflow: hidden;
+      backdrop-filter: blur(12px) saturate(130%);
+      -webkit-backdrop-filter: blur(12px) saturate(130%);
     }
     .site-header::after {
       content: '';
@@ -241,8 +244,8 @@
       background: linear-gradient(90deg, transparent, rgba(255, 196, 71, 0.45), rgba(79, 175, 255, 0.35), transparent);
     }
     .site-header-logo {
-      width: 54px;
-      height: 54px;
+      width: 58px;
+      height: 58px;
       object-fit: contain;
       flex: 0 0 auto;
       filter: drop-shadow(0 6px 18px rgba(0,0,0,0.28));
@@ -250,23 +253,7 @@
       background: rgba(255,255,255,0.02);
     }
     .site-header-copy { min-width: 0; }
-    .site-header-title { margin: 0; font-size: clamp(20px, 4.2vw, 28px); line-height: 1.05; letter-spacing: 0.01em; }
-    .site-header-subtitle { margin-top: 4px; color: #a8b0bd; font-size: 13px; }
-    .site-header-badge {
-      margin-left: auto;
-      align-self: flex-start;
-      flex: 0 0 auto;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 6px 10px;
-      border-radius: 999px;
-      border: 1px solid rgba(255, 196, 71, 0.28);
-      background: rgba(255, 196, 71, 0.08);
-      color: #f3d88c;
-      font-size: 12px;
-      white-space: nowrap;
-    }
+    .site-header-title { margin: 0; font-size: clamp(22px, 4.4vw, 30px); line-height: 1.05; letter-spacing: 0.01em; text-shadow: 0 6px 18px rgba(0,0,0,0.25); }
 
 
     /* Nagłówek: bilans W-R-P */
@@ -394,11 +381,9 @@
 
     @media (max-width: 720px) {
       body { margin: 12px; }
-      body::before { background-size: min(90vw, 520px); background-position: center 38%; opacity: 0.035; }
+      body::before { background-size: min(84vw, 460px); background-position: center 44%; opacity: 0.065; }
       .site-header { gap: 10px; padding: 10px 12px; border-radius: 14px; }
       .site-header-logo { width: 44px; height: 44px; }
-      .site-header-badge { display: none; }
-      .site-header-subtitle { font-size: 12px; }
     }
 
   </style>
@@ -409,9 +394,7 @@
     <img class="site-header-logo" src="/static/icons/g3wlogo.png" alt="Logo G3W" />
     <div class="site-header-copy">
       <h1 class="site-header-title">G3W War Dashboard</h1>
-      <div class="site-header-subtitle">Respect Alliance analytics, historia wojen i forma rosteru</div>
     </div>
-    <div class="site-header-badge">⚔️ Empires &amp; Puzzles</div>
   </header>
 
 

@@ -53,7 +53,7 @@ async def _send_temp(channel: discord.abc.Messageable, content: str, *, delete_a
 # Override via environment variables on Render:
 #   EPWAR_VERSION: e.g. v3.4.24
 #   EPWAR_BUILD:   e.g. build: 2026-03-01 22:05:00 CET
-APP_VERSION = env_str("EPWAR_VERSION", "v3.4.57")
+APP_VERSION = env_str("EPWAR_VERSION", "v3.4.58")
 _STARTED_AT = datetime.now().astimezone()
 BUILD_INFO = env_str(
     "EPWAR_BUILD",
