@@ -10,25 +10,25 @@
       radial-gradient(circle at 50% 18%, rgba(46,74,120,0.20) 0%, rgba(46,74,120,0.00) 34%),
       radial-gradient(circle at top, #17212d 0%, #0f141b 40%, #0c1117 100%);
       color: #e7e7e7; position: relative; overflow-x: hidden; min-height: 100vh; }
-    body::before { content: ''; position: fixed; inset: 0; pointer-events: none; background: url('/static/icons/g3wlogo.png') center 46% / min(78vw, 820px) auto no-repeat; opacity: 0.08; filter: saturate(0.9) brightness(0.9); z-index: 0; }
+    body::before { content: ''; position: fixed; inset: 0; pointer-events: none; background: url('/static/icons/g3wlogo.png') center 54% / min(92vw, 980px) auto no-repeat; opacity: 0.16; filter: saturate(0.95) brightness(0.95) blur(0.2px); z-index: 0; }
     body::after { content: ''; position: fixed; inset: 0; pointer-events: none; background:
-      linear-gradient(180deg, rgba(8,12,18,0.12), rgba(8,12,18,0.30) 35%, rgba(8,12,18,0.48) 100%),
-      radial-gradient(circle at center, rgba(255,255,255,0.04), rgba(12,17,23,0.16) 42%, rgba(12,17,23,0.30) 100%); z-index: 0; }
+      linear-gradient(180deg, rgba(8,12,18,0.06), rgba(8,12,18,0.18) 35%, rgba(8,12,18,0.30) 100%),
+      radial-gradient(circle at center, rgba(255,255,255,0.02), rgba(12,17,23,0.08) 42%, rgba(12,17,23,0.16) 100%); z-index: 0; }
     body > * { position: relative; z-index: 1; }
     h1 { margin: 0 0 10px; font-size: 20px; }
     .muted { color: #a8b0bd; }
-    .card { position: relative; overflow: hidden; background: linear-gradient(180deg, rgba(18, 26, 36, 0.62), rgba(9, 14, 21, 0.54)); border: 1px solid rgba(96, 116, 146, 0.24); border-radius: 22px; padding: 14px; margin: 12px 0 18px; box-shadow: 0 18px 40px rgba(0,0,0,0.14); backdrop-filter: blur(12px) saturate(125%); -webkit-backdrop-filter: blur(12px) saturate(125%); }
+    .card { position: relative; overflow: hidden; background: linear-gradient(180deg, rgba(18, 26, 36, 0.40), rgba(9, 14, 21, 0.30)); border: 1px solid rgba(112, 132, 166, 0.18); border-radius: 22px; padding: 14px; margin: 12px 0 18px; box-shadow: 0 18px 40px rgba(0,0,0,0.10); backdrop-filter: blur(8px) saturate(112%); -webkit-backdrop-filter: blur(8px) saturate(112%); }
     .card > * { position: relative; z-index: 1; }
-    .table-wrap { overflow: auto; margin-top: 10px; border-radius: 16px; background: linear-gradient(180deg, rgba(8, 12, 18, 0.10), rgba(8, 12, 18, 0.06)); box-shadow: inset 0 0 0 1px rgba(120,140,170,0.06); }
+    .table-wrap { overflow: auto; margin-top: 10px; border-radius: 16px; background: linear-gradient(180deg, rgba(8, 12, 18, 0.04), rgba(8, 12, 18, 0.02)); box-shadow: inset 0 0 0 1px rgba(120,140,170,0.04); }
     .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
     select, input { background: #0f1115; color: #e7e7e7; border: 1px solid #2a3443; border-radius: 8px; padding: 6px 8px; }
     table { width: 100%; border-collapse: collapse; }
     th, td { border-bottom: 1px solid rgba(88, 104, 132, 0.24); padding: 9px 8px; vertical-align: top; background: transparent; }
-    th { text-align: left; color: #d5deec; font-weight: 600; background: rgba(255,255,255,0.015); }
-    tr:hover td { background: rgba(255,255,255,0.05); }
+    th { text-align: left; color: #d5deec; font-weight: 600; background: rgba(255,255,255,0.010); text-shadow: 0 1px 0 rgba(0,0,0,0.28); }
+    tr:hover td { background: rgba(255,255,255,0.035); }
     /* Wyraźniejsze Zwycięstwo / Porażka (delikatne tło całego wiersza) */
-    tr.row-win td { background: rgba(46, 204, 113, 0.06); }
-    tr.row-loss td { background: rgba(231, 76, 60, 0.06); }
+    tr.row-win td { background: rgba(46, 204, 113, 0.045); }
+    tr.row-loss td { background: rgba(231, 76, 60, 0.045); }
     tr.row-win:hover td { background: rgba(46, 204, 113, 0.09); }
     tr.row-loss:hover td { background: rgba(231, 76, 60, 0.09); }
     .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; border: 1px solid #2a3443; font-size: 12px; }
@@ -88,16 +88,16 @@
     .avg-row { cursor: pointer; }
     .avg-row:hover { background: rgba(255,255,255,0.025); }
     /* Podium dla TOP 3 w tabeli średnich */
-    .avg-row.podium-1 td { background: rgba(255, 215, 0, 0.10); }
-    .avg-row.podium-2 td { background: rgba(192, 192, 192, 0.10); }
-    .avg-row.podium-3 td { background: rgba(205, 127, 50, 0.10); }
+    .avg-row.podium-1 td { background: rgba(255, 215, 0, 0.075); }
+    .avg-row.podium-2 td { background: rgba(192, 192, 192, 0.075); }
+    .avg-row.podium-3 td { background: rgba(205, 127, 50, 0.075); }
     .avg-row.podium-1:hover td { background: rgba(255, 215, 0, 0.14); }
     .avg-row.podium-2:hover td { background: rgba(192, 192, 192, 0.14); }
     .avg-row.podium-3:hover td { background: rgba(205, 127, 50, 0.14); }
 
 
     /* Szczegoly w tabeli srednich rozwijane sa kliknieciem w caly wiersz */
-    .details-row td { background: rgba(255,255,255,0.015); }
+    .details-row td { background: rgba(255,255,255,0.010); }
     .btn { background: transparent; border: 1px solid #2a3443; color: #e7e7e7; border-radius: 8px; padding: 6px 10px; cursor: pointer; }
     .btn:hover { background: rgba(255,255,255,0.03); }
 
@@ -271,7 +271,7 @@
     @media (max-width: 640px) {
       body { padding: 10px; }
       body::before { background-size: min(92vw, 620px); opacity: 0.095; background-position: center 46%; }
-      .card { background: linear-gradient(180deg, rgba(18,26,36,0.68), rgba(9,14,21,0.6)); border-radius: 18px; }
+      .card { background: linear-gradient(180deg, rgba(18,26,36,0.34), rgba(9,14,21,0.24)); border-radius: 18px; }
       .site-header { border-radius: 18px; padding: 10px 12px; }
       .site-header-logo { width: 38px; height: 38px; }
 
@@ -388,7 +388,7 @@
     @media (max-width: 640px) {
       body { padding: 10px; }
       body::before { background-size: min(92vw, 620px); opacity: 0.095; background-position: center 46%; }
-      .card { background: linear-gradient(180deg, rgba(18,26,36,0.68), rgba(9,14,21,0.6)); border-radius: 18px; }
+      .card { background: linear-gradient(180deg, rgba(18,26,36,0.34), rgba(9,14,21,0.24)); border-radius: 18px; }
       .site-header { border-radius: 18px; padding: 10px 12px; }
       .site-header-logo { width: 38px; height: 38px; }
 
