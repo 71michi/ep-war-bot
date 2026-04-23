@@ -175,6 +175,7 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
+      gap: 4px;
       min-width: 32px;
       padding: 2px 7px;
       border-radius: 999px;
@@ -187,6 +188,16 @@
       letter-spacing: .01em;
       margin-left: 2px;
       flex: 0 0 auto;
+      white-space: nowrap;
+    }
+    .pts-chip .chip-podium {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      line-height: 1;
+      opacity: 0.92;
+      transform: translateY(-0.5px);
     }
     .pts-chip.pts-above-avg {
       box-shadow: inset 0 0 0 1px rgba(46, 204, 113, 0.18);
@@ -1573,7 +1584,16 @@
             const rankNum = Number(v.rank);
             const rankInline = document.createElement('span');
             rankInline.className = 'chip-rank-inline';
-            rankInline.textContent = Number.isFinite(rankNum) ? `#${rankNum}` : '#–';
+            if (Number.isFinite(rankNum) && rankNum >= 1 && rankNum <= 3) {
+              const podium = document.createElement('span');
+              podium.className = 'chip-podium';
+              podium.textContent = rankNum === 1 ? '🥇' : (rankNum === 2 ? '🥈' : '🥉');
+              podium.setAttribute('aria-hidden', 'true');
+              rankInline.appendChild(podium);
+            }
+            const rankText = document.createElement('span');
+            rankText.textContent = Number.isFinite(rankNum) ? `#${rankNum}` : '#–';
+            rankInline.appendChild(rankText);
             content.appendChild(rankInline);
           }
 
