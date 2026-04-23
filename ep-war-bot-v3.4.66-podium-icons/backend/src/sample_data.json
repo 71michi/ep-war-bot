@@ -1,0 +1,148 @@
+{
+  "wars": [
+    {
+      "id": "war-2026-01-22",
+      "date": "2026-01-22",
+      "opponent": "SAMYELI ツ",
+      "result": "Zwycięstwo",
+      "alliance_points": 4240,
+      "opponent_points": 3995,
+      "participant_count": 27,
+      "mode": "Grad strzał",
+      "players": [
+        {
+          "player": "Michi",
+          "points": 189,
+          "mode": "Grad strzał"
+        },
+        {
+          "player": "Zawisza",
+          "points": 176,
+          "mode": "Grad strzał"
+        },
+        {
+          "player": "Bush22",
+          "points": 173,
+          "mode": "Grad strzał"
+        },
+        {
+          "player": "Jaro",
+          "points": 171,
+          "mode": "Grad strzał"
+        },
+        {
+          "player": "Ragnar",
+          "points": 168,
+          "mode": "Grad strzał"
+        },
+        {
+          "player": "Olaf",
+          "points": 166,
+          "mode": "Grad strzał"
+        },
+        {
+          "player": "Nela",
+          "points": 164,
+          "mode": "Grad strzał"
+        },
+        {
+          "player": "Kira",
+          "points": 158,
+          "mode": "Grad strzał"
+        },
+        {
+          "player": "Viko",
+          "points": 152,
+          "mode": "Grad strzał"
+        },
+        {
+          "player": "Daro",
+          "points": 149,
+          "mode": "Grad strzał"
+        },
+        {
+          "player": "Marta",
+          "points": 142,
+          "mode": "Grad strzał"
+        },
+        {
+          "player": "Riko",
+          "points": 139,
+          "mode": "Grad strzał"
+        }
+      ]
+    },
+    {
+      "id": "war-2026-01-18",
+      "date": "2026-01-18",
+      "opponent": "Northern Kings",
+      "result": "Porażka",
+      "alliance_points": 4010,
+      "opponent_points": 4138,
+      "participant_count": 30,
+      "mode": "Krwawa wojna",
+      "players": [
+        {
+          "player": "Michi",
+          "points": 148,
+          "mode": "Krwawa wojna"
+        },
+        {
+          "player": "Zawisza",
+          "points": 155,
+          "mode": "Krwawa wojna"
+        },
+        {
+          "player": "Bush22",
+          "points": 150,
+          "mode": "Krwawa wojna"
+        },
+        {
+          "player": "Jaro",
+          "points": 139,
+          "mode": "Krwawa wojna"
+        },
+        {
+          "player": "Ragnar",
+          "points": 162,
+          "mode": "Krwawa wojna"
+        },
+        {
+          "player": "Olaf",
+          "points": 141,
+          "mode": "Krwawa wojna"
+        },
+        {
+          "player": "Nela",
+          "points": 137,
+          "mode": "Krwawa wojna"
+        },
+        {
+          "player": "Kira",
+          "points": 145,
+          "mode": "Krwawa wojna"
+        },
+        {
+          "player": "Viko",
+          "points": 143,
+          "mode": "Krwawa wojna"
+        },
+        {
+          "player": "Daro",
+          "points": 132,
+          "mode": "Krwawa wojna"
+        },
+        {
+          "player": "Marta",
+          "points": 147,
+          "mode": "Krwawa wojna"
+        },
+        {
+          "player": "Riko",
+          "points": 131,
+          "mode": "Krwawa wojna"
+        }
+      ]
+    }
+  ]
+}
